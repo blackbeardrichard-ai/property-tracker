@@ -6,6 +6,30 @@ import { useState, useEffect, useRef, useContext, createContext, useCallback } f
 const CANONICAL_KEY = "home-tracker-v1";
 const LEGACY_KEYS   = ["taskmanager-v2","taskmanager-v1","task-manager-data"];
 
+// Storage abstraction — works in both Claude artifact (window.storage) and hosted (localStorage)
+const storage = {
+  async get(key) {
+    // Try Claude artifact storage first
+    if (window.storage && window.storage !== storage) {
+      try { const r = await window.storage.get(key); if (r?.value) return r; } catch {}
+    }
+    // Fall back to localStorage
+    try {
+      const val = localStorage.getItem(key);
+      if (val) return { value: val };
+    } catch {}
+    return null;
+  },
+  async set(key, value) {
+    // Try Claude artifact storage first
+    if (window.storage && window.storage !== storage) {
+      try { await window.storage.set(key, value); } catch {}
+    }
+    // Always also save to localStorage
+    try { localStorage.setItem(key, value); } catch {}
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THEME — forest green / warm cream
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +185,10 @@ const genId = () => Math.random().toString(36).substr(2,9) + Date.now().toString
 const calcNextDue = (lastDone, freqMonths) => {
   if (!lastDone || !freqMonths) return "";
   const d = new Date(lastDone);
-  d.setMonth(d.getMonth() + Math.round(freqMonths));
+  // Use days-based calculation for accuracy across all frequencies
+  // freqMonths: 0.25 = 1 week, 1 = 1 month, 12 = 1 year etc.
+  const days = Math.round(freqMonths * 30.4375);
+  d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 };
 const daysUntil = dateStr => {
@@ -1102,26 +1129,26 @@ export default function App() {
     async function load(){
       try{
         let stored=null;
-        try{const r=await window.storage.get(CANONICAL_KEY);if(r?.value)stored=JSON.parse(r.value);}catch{}
-        if(!stored){for(const k of LEGACY_KEYS){try{const r=await window.storage.get(k);if(r?.value){stored=JSON.parse(r.value);break;}}catch{}}}
+        try{const r=await storage.get(CANONICAL_KEY);if(r?.value)stored=JSON.parse(r.value);}catch{}
+        if(!stored){for(const k of LEGACY_KEYS){try{const r=await storage.get(k);if(r?.value){stored=JSON.parse(r.value);break;}}catch{}}}
         if(stored&&Array.isArray(stored)){
           // Detect old flat tasks format (migrate into Wonderboom)
           if(stored.length>0&&stored[0].subtasks!==undefined&&!stored[0].rooms){
             const migrated=JSON.parse(JSON.stringify(SEED_PROPERTIES));
             migrated[0].tasks=stored;
             setProperties(migrated);
-            await window.storage.set(CANONICAL_KEY,JSON.stringify(migrated));
+            await storage.set(CANONICAL_KEY,JSON.stringify(migrated));
           } else {
             // Merge: keep stored, add any missing seed properties
             const seenIds=new Set(stored.map(p=>p.id));
             const missing=SEED_PROPERTIES.filter(p=>!seenIds.has(p.id));
             const merged=[...stored,...missing];
             setProperties(merged);
-            await window.storage.set(CANONICAL_KEY,JSON.stringify(merged));
+            await storage.set(CANONICAL_KEY,JSON.stringify(merged));
           }
         } else {
           setProperties(SEED_PROPERTIES);
-          await window.storage.set(CANONICAL_KEY,JSON.stringify(SEED_PROPERTIES));
+          await storage.set(CANONICAL_KEY,JSON.stringify(SEED_PROPERTIES));
         }
       }catch{setProperties(SEED_PROPERTIES);}
       setLoaded(true);
@@ -1133,7 +1160,7 @@ export default function App() {
   useEffect(()=>{
     if(!loaded)return;
     clearTimeout(saveTimer.current);
-    saveTimer.current=setTimeout(()=>{window.storage.set(CANONICAL_KEY,JSON.stringify(properties)).catch(()=>{});},500);
+    saveTimer.current=setTimeout(()=>{storage.set(CANONICAL_KEY,JSON.stringify(properties)).catch(()=>{});},500);
     return()=>clearTimeout(saveTimer.current);
   },[properties,loaded]);
 

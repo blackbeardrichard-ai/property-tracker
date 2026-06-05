@@ -5,7 +5,7 @@ import { T, S } from '../lib/theme';
 
 const ICONS = ['🏠','🌾','🌿','🏡','🏗️','🏢','🌲','🏕️','🌴','🏔️'];
 
-export default function PropertySelectorPage({ onSelect }) {
+export default function PropertySelectorPage({ onSelect, onSettings }) {
   const { profile, isAdmin, signOut } = useAuth();
   const { properties, loading, addProperty } = useProperties();
   const [adding, setAdding] = useState(false);
@@ -27,7 +27,7 @@ export default function PropertySelectorPage({ onSelect }) {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 
       {/* Header */}
-      <div style={{ background:'rgba(15,20,18,0.95)', borderBottom:`1px solid ${T.border}`, backdropFilter:'blur(12px)', padding:'14px 18px', display:'flex', alignItems:'center', gap:'12px', position:'sticky', top:0, zIndex:10 }}>
+      <div style={{ background:'rgba(15,20,18,0.95)', borderBottom:`1px solid ${T.border}`, backdropFilter:'blur(12px)', padding:'14px 18px', display:'flex', alignItems:'center', gap:'10px', position:'sticky', top:0, zIndex:10 }}>
         <div style={{ width:'36px', height:'36px', background:T.primary, borderRadius:'9px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>🏡</div>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:'15px', fontWeight:'700', color:T.text }}>Property Tracker</div>
@@ -35,6 +35,10 @@ export default function PropertySelectorPage({ onSelect }) {
             {profile?.full_name} · {profile?.role}
           </div>
         </div>
+        <button onClick={onSettings} style={{ background:'none', border:`1px solid ${T.border}`, color:T.textDim, borderRadius:'7px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor=T.accent; e.currentTarget.style.color=T.accent; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.color=T.textDim; }}
+        >⚙️ Settings</button>
         <button onClick={signOut} style={{ background:'none', border:`1px solid ${T.border}`, color:T.textDim, borderRadius:'7px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}
           onMouseEnter={e => { e.currentTarget.style.borderColor=T.red; e.currentTarget.style.color=T.red; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.color=T.textDim; }}

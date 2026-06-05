@@ -22,12 +22,6 @@ export function useTasks(propertyId) {
 
   useEffect(() => {
     fetchTasks();
-    const sub = supabase.channel(`tasks-${propertyId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `property_id=eq.${propertyId}` }, fetchTasks)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subtasks' }, fetchTasks)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, fetchTasks)
-      .subscribe();
-    return () => supabase.removeChannel(sub);
   }, [fetchTasks]);
 
   // ── Tasks ─────────────────────────────────────────────────────

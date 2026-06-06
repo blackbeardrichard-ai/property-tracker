@@ -13,15 +13,7 @@ export function useTasks(propertyId) {
     setLoading(true);
     const { data } = await supabase
       .from('tasks')
-      .select(`
-        *,
-        assigned_profile:assigned_to(id, full_name),
-        subtasks(
-          *,
-          completed_profile:completed_by(id, full_name),
-          materials(*, acquired_profile:acquired_by(id, full_name))
-        )
-      `)
+      .select(`*, subtasks(*, materials(*))`)
       .eq('property_id', propertyId)
       .order('position');
     setTasks(data || []);

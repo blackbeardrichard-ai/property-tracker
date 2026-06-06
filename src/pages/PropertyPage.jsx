@@ -114,11 +114,42 @@ function DotsMenu({ items }) {
 }
 
 // ── Unit picker ───────────────────────────────────────────────────
-const UNITS = ['mm','mm²','m','m²','m³','ml','L','g','kg','pcs','bag','sheet','bucket','length','set','Roll 100','Roll 500','Box 50','Box 100','packet','pallet','pair','Other'];
+const UNIT_DATA = [
+  {label:'mm',      aliases:['millimeter','millimetre','milli']},
+  {label:'mm²',     aliases:['mm2','square mm','sq mm']},
+  {label:'mm³',     aliases:['mm3','cubic mm']},
+  {label:'m',       aliases:['meter','metre','meters','metres','linear']},
+  {label:'m²',      aliases:['m2','square meter','square metre','sqm','sq m','area','square']},
+  {label:'m³',      aliases:['m3','cube','cubic','cubic meter','sand','stone','gravel','fill']},
+  {label:'ml',      aliases:['milliliter','millilitre']},
+  {label:'L',       aliases:['liter','litre','liters','litres','liquid','l']},
+  {label:'g',       aliases:['gram','grams']},
+  {label:'kg',      aliases:['kilogram','kilograms','kilo','kilos']},
+  {label:'pcs',     aliases:['pieces','piece','each','items','item','units','unit','pc','number','qty']},
+  {label:'bag',     aliases:['bags','sack','sacks']},
+  {label:'sheet',   aliases:['sheets','board','boards','panel','panels']},
+  {label:'bucket',  aliases:['buckets','pail']},
+  {label:'length',  aliases:['lengths','bar','bars','stick','rod']},
+  {label:'set',     aliases:['sets','kit','kits']},
+  {label:'pair',    aliases:['pairs','double']},
+  {label:'Roll 100',aliases:['roll','rolls','reel','roll100']},
+  {label:'Roll 500',aliases:['roll500']},
+  {label:'Box 50',  aliases:['box','boxes','box50','carton']},
+  {label:'Box 100', aliases:['box100']},
+  {label:'packet',  aliases:['packets','pack','packs']},
+  {label:'pallet',  aliases:['pallets','skid']},
+  {label:'Other',   aliases:['custom','specify','other']},
+];
+const norm = s => s.toLowerCase().trim().replace(/²/g,'2').replace(/³/g,'3');
+const filterUnits = q => {
+  if (!q.trim()) return UNIT_DATA;
+  const n = norm(q);
+  return UNIT_DATA.filter(u => norm(u.label).includes(n) || u.aliases.some(a => norm(a).includes(n)));
+};
 
 function UnitPicker({ value, onChange }) {
   const [search, setSearch] = useState('');
-  const filtered = UNITS.filter(u => u.toLowerCase().includes(search.toLowerCase()));
+  const filtered = filterUnits(search);
   return (
     <div>
       {value&&<div style={{display:'flex',gap:'8px',marginBottom:'8px'}}><div style={{flex:1,background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'6px',padding:'7px 12px',fontSize:'13px',color:T.accent,fontWeight:'700'}}>✓ {value}</div><button onClick={()=>{onChange('');setSearch('');}} style={{background:'none',border:`1px solid ${T.borderLight}`,color:T.textDim,borderRadius:'6px',padding:'7px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans}}>Change</button></div>}

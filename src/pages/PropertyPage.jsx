@@ -288,11 +288,64 @@ function TaskDetailsModal({ task, rooms, users, onSave, onClose }) {
 }
 
 // ── Material Row ──────────────────────────────────────────────────
+// ── Shared material status control ────────────────────────────────
+// Single source of truth for changing a material's status, used by both the
+// Tasks tab (MaterialRow) and the Shopping list. Behaviour:
+//   - canEditStatusBack (admins): tap pill -> popover to pick ANY status
+//   - canWrite (technician+): forward-only advance tap
+//   - otherwise: read-only pill
+function MaterialStatusControl({ status, canWrite, canEditStatusBack, onAdvance, onSetStatus }) {
+  const [picking, setPicking] = useState(false);
+  const st = status || 'needed';
+  const cfg = MAT_STATUS[st] || MAT_STATUS.needed;
+  const isComplete = st === 'used';
+
+  if (canEditStatusBack) {
+    return (
+      <div style={{position:'relative',flexShrink:0}}>
+        <button onClick={()=>setPicking(v=>!v)} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:'4px'}}>
+          {cfg.label} {Ic.chevron(picking)}
+        </button>
+        {picking&&(
+          <>
+            <div style={{position:'fixed',inset:0,zIndex:140}} onClick={()=>setPicking(false)}/>
+            <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:T.popoverBg,border:`1px solid ${T.border}`,borderRadius:T.radius,padding:'5px',minWidth:'130px',boxShadow:T.shadow,display:'flex',flexDirection:'column',gap:'2px'}}>
+              {['needed','ordered','delivered','used'].map(s=>{
+                const sc = MAT_STATUS[s];
+                const active = s===st;
+                return (
+                  <button key={s} onClick={()=>{ if(s!==st) onSetStatus(s); setPicking(false); }}
+                    style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:active?sc.bg:'none',border:'none',borderRadius:'6px',padding:'8px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:active?'700':'500',color:sc.color,textAlign:'left'}}
+                    onMouseEnter={e=>e.currentTarget.style.background=sc.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background=active?sc.bg:'none'}>
+                    <span style={{width:'8px',height:'8px',borderRadius:'50%',background:sc.color,flexShrink:0}}/> {sc.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (isComplete) {
+    return <span style={{fontSize:'10px',fontFamily:T.mono,color:T.accent,background:T.accentFade,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>✓ Used</span>;
+  }
+  if (canWrite) {
+    return (
+      <button onClick={onAdvance} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+        {cfg.label} →
+      </button>
+    );
+  }
+  // Read-only pill for viewers
+  return <span style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>{cfg.label}</span>;
+}
+
 function MaterialRow({ mat, canWrite, canDelete, canEditStatusBack, onAdvance, onSetStatus, onDelete }) {
   const [confirming, setConfirming] = useState(false);
-  const [picking, setPicking] = useState(false);
   const status = mat.status || 'needed';
-  const cfg = MAT_STATUS[status] || MAT_STATUS.needed;
   const isComplete = status === 'used';
 
   return (
@@ -304,44 +357,7 @@ function MaterialRow({ mat, canWrite, canDelete, canEditStatusBack, onAdvance, o
           {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint,marginLeft:'8px'}}>{mat.qty} {mat.unit||''}</span>}
           {mat.acquired_profile&&<div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'1px'}}>→ {mat.acquired_profile.full_name}</div>}
         </div>
-
-        {canEditStatusBack ? (
-          // Admins: tap the status pill to set ANY status (forward or backward).
-          <div style={{position:'relative',flexShrink:0}}>
-            <button onClick={()=>setPicking(v=>!v)} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:'4px'}}>
-              {cfg.label} {Ic.chevron(picking)}
-            </button>
-            {picking&&(
-              <>
-                <div style={{position:'fixed',inset:0,zIndex:140}} onClick={()=>setPicking(false)}/>
-                <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:T.popoverBg,border:`1px solid ${T.border}`,borderRadius:T.radius,padding:'5px',minWidth:'130px',boxShadow:T.shadow,display:'flex',flexDirection:'column',gap:'2px'}}>
-                  {['needed','ordered','delivered','used'].map(s=>{
-                    const sc = MAT_STATUS[s];
-                    const active = s===status;
-                    return (
-                      <button key={s} onClick={()=>{ if(s!==status) onSetStatus(s); setPicking(false); }}
-                        style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:active?sc.bg:'none',border:'none',borderRadius:'6px',padding:'8px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:active?'700':'500',color:sc.color,textAlign:'left'}}
-                        onMouseEnter={e=>e.currentTarget.style.background=sc.bg}
-                        onMouseLeave={e=>e.currentTarget.style.background=active?sc.bg:'none'}>
-                        <span style={{width:'8px',height:'8px',borderRadius:'50%',background:sc.color,flexShrink:0}}/> {sc.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          // Everyone else: forward-only advance, exactly as before.
-          <>
-            {canWrite&&!isComplete&&(
-              <button onClick={onAdvance} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-                {cfg.label} →
-              </button>
-            )}
-            {isComplete&&<span style={{fontSize:'10px',fontFamily:T.mono,color:T.accent,background:T.accentFade,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>✓ Used</span>}
-          </>
-        )}
+        <MaterialStatusControl status={status} canWrite={canWrite} canEditStatusBack={canEditStatusBack} onAdvance={onAdvance} onSetStatus={onSetStatus}/>
         {canDelete&&<button onClick={()=>setConfirming(true)} style={{background:'none',border:'none',color:T.textFaint,cursor:'pointer',padding:'2px',display:'flex',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textFaint}><Ic.trash/></button>}
       </div>
     </>
@@ -603,7 +619,7 @@ function ServiceLogModal({ service, onSave, onClose }) {
 
 // ── Services Tab ──────────────────────────────────────────────────
 function ServicesTab({ property }) {
-  const { canManage, isAdmin } = useAuth();
+  const { canManage, isAdmin, canWrite, isTechnician } = useAuth();
   const { services, loading, addService, deleteService, logService } = useServices(property.id);
   const [adding, setAdding] = useState(false);
   const [loggingId, setLoggingId] = useState(null);
@@ -653,9 +669,9 @@ function ServicesTab({ property }) {
               </div>
             </div>
             <div style={{display:'flex',gap:'8px',marginTop:'10px',flexWrap:'wrap'}}>
-              <button onClick={()=>setLoggingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,color:T.accent,fontSize:'12px',borderRadius:'6px',padding:'6px 12px',cursor:'pointer',fontFamily:T.sans,fontWeight:'600'}}>
+              {(canWrite||isTechnician||canManage||isAdmin)&&<button onClick={()=>setLoggingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,color:T.accent,fontSize:'12px',borderRadius:'6px',padding:'6px 12px',cursor:'pointer',fontFamily:T.sans,fontWeight:'600'}}>
                 <Ic.bell/> Log Service Done
-              </button>
+              </button>}
               {(canManage||isAdmin)&&<button onClick={()=>setConfirmingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px solid ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'6px',padding:'6px 10px',cursor:'pointer',fontFamily:T.sans}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=T.red;e.currentTarget.style.color=T.red;}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textDim;}}>
@@ -705,9 +721,13 @@ function ServicesTab({ property }) {
 
 // ── Shopping Tab ──────────────────────────────────────────────────
 function ShoppingTab({ property }) {
-  const { tasks, advanceMaterialStatus } = useTasks(property.id);
+  const { canManage, canWrite, isTechnician, isAdmin, can } = useAuth();
+  const { tasks, advanceMaterialStatus, setMaterialStatus } = useTasks(property.id);
   const [showAll, setShowAll] = useState(false);
   const [shareModal, setShareModal] = useState(false);
+
+  const canAdvance = canWrite || canManage || isTechnician || isAdmin;
+  const canEditStatusBack = can('edit_status_backward');
 
   const groups = tasks.map(task => {
     const items = (task.subtasks||[]).flatMap(sub=>(sub.materials||[]).map(m=>({...m,subtaskName:sub.name,taskId:task.id})));
@@ -793,16 +813,13 @@ function ShoppingTab({ property }) {
           </div>
           {visible.map(mat=>{
             const status = mat.status||'needed';
-            const cfg = MAT_STATUS[status];
             const isUsed = status==='used';
             return <div key={mat.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'8px',marginBottom:'4px',background:isUsed?T.primaryFade:T.surface2,border:`1px solid ${isUsed?T.primaryBorder:T.border}`}}>
               <div style={{flex:1}}>
                 <div style={{fontSize:'14px',fontFamily:T.sans,color:isUsed?T.textDim:T.text,textDecoration:isUsed?'line-through':'none'}}>{mat.name}</div>
                 {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint}}>{mat.qty} {mat.unit||''}</span>}
               </div>
-              <button onClick={()=>!isUsed&&advanceMaterialStatus(mat.id)} disabled={isUsed} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:isUsed?'default':'pointer',whiteSpace:'nowrap'}}>
-                {isUsed?'✓ Used':`${cfg.label} →`}
-              </button>
+              <MaterialStatusControl status={status} canWrite={canAdvance} canEditStatusBack={canEditStatusBack} onAdvance={()=>advanceMaterialStatus(mat.id)} onSetStatus={(s)=>setMaterialStatus(mat.id,s)}/>
             </div>;
           })}
         </div>;

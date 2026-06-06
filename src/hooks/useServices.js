@@ -51,7 +51,7 @@ export function useServices(propertyId) {
     fetchServices();
   };
 
-  const logService = async (serviceId, logData) => {
+  const logService = async (serviceId, logData, onSuccess) => {
     const svc = services.find(s => s.id === serviceId);
     const nextDue = svc?.is_recurring ? calcNextDue(logData.doneDate, svc.freq_months) : null;
 
@@ -78,7 +78,8 @@ export function useServices(propertyId) {
 
     await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'logged', entityType: 'service', entityId: serviceId, entityName: svc?.name, newValue: { doneDate: logData.doneDate, company: logData.company } });
 
-    fetchServices();
+    await fetchServices();
+    if (onSuccess) onSuccess(svc?.name);
   };
 
   return { services, loading, addService, deleteService, logService, fetchServices };

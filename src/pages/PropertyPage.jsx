@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../hooks/useTasks';
 import { useServices } from '../hooks/useServices';
 import { useRooms } from '../hooks/useRooms';
+import { useUsers } from '../hooks/useUsers';
 import { T, S } from '../lib/theme';
 import AssetsTab from './AssetsTab';
 import LivestockTab from './LivestockTab';
@@ -18,18 +19,39 @@ const Ic = {
   trash:   () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 3h11M4 3V2h5v1M2 3l1 8h7l1-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   up:      () => <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M6 9V3M3 6l3-3 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   down:    () => <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M6 3v6M3 6l3 3 3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  tool:    () => <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="11" width="12" height="2" rx="1" fill="currentColor"/></svg>,
-  wrench:  () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M14.5 3a3.5 3.5 0 00-3.45 4.1L4 14.2 5.8 16l7.1-7.05A3.5 3.5 0 1014.5 3z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  cart:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M1 1h2l2.5 10h10l2-7H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="17" r="1.2" fill="currentColor"/><circle cx="15" cy="17" r="1.2" fill="currentColor"/></svg>,
-  home:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M2 10L10 2l8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><rect x="4" y="10" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8"/></svg>,
   bell:    () => <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1a4 4 0 014 4v3l1 2H2l1-2V5a4 4 0 014-4z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M5.5 12a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
   note:    () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M3 4h8M3 7h8M3 10h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
   cal:     () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M1 6h12M4 1v2M10 1v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
+  person:  () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M1 13c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
+  wrench:  () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M14.5 3a3.5 3.5 0 00-3.45 4.1L4 14.2 5.8 16l7.1-7.05A3.5 3.5 0 1014.5 3z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  cart:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M1 1h2l2.5 10h10l2-7H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="17" r="1.2" fill="currentColor"/><circle cx="15" cy="17" r="1.2" fill="currentColor"/></svg>,
+  home:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M2 10L10 2l8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><rect x="4" y="10" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8"/></svg>,
+  tool:    () => <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="11" width="12" height="2" rx="1" fill="currentColor"/></svg>,
+  cow:     () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="12" rx="7" ry="5" stroke="currentColor" strokeWidth="1.6"/><path d="M6 7c0-2 1-4 4-4s4 2 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M5 17l-1 2M15 17l1 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
+  box:     () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.6"/><path d="M2 7l8-5 8 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 2v16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
 };
 
 const daysUntil = d => d ? Math.round((new Date(d) - new Date()) / 86400000) : null;
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-const genId = () => Math.random().toString(36).substr(2,9);
+const fmtDateTime = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+
+// Material status config
+const MAT_STATUS = {
+  needed:    { label:'Needed',    color:T.textDim,  bg:'rgba(255,255,255,0.06)', next:'ordered'   },
+  ordered:   { label:'Ordered',   color:T.warn,     bg:T.warnFade,              next:'delivered'  },
+  delivered: { label:'Delivered', color:'#6EC6F0',  bg:'rgba(110,198,240,0.12)',next:'used'       },
+  used:      { label:'Used',      color:T.accent,   bg:T.accentFade,            next:null         },
+};
+
+// ── Toast ─────────────────────────────────────────────────────────
+function Toast({ message, onDismiss }) {
+  useState(() => { const t = setTimeout(onDismiss, 4000); return () => clearTimeout(t); });
+  return (
+    <div style={{ position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)', zIndex:300, background:T.primary, border:`1px solid ${T.accent}40`, borderRadius:T.radius, padding:'10px 20px', color:T.text, fontFamily:T.sans, fontSize:'13px', fontWeight:'600', boxShadow:T.shadow, whiteSpace:'nowrap' }}>
+      ✓ {message}
+    </div>
+  );
+}
 
 // ── Shared small components ───────────────────────────────────────
 function ConfirmDelete({ label, onConfirm, onClose }) {
@@ -79,7 +101,7 @@ function DotsMenu({ items }) {
           <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:'#1e2b27',border:`1px solid ${T.borderLight}`,borderRadius:T.radius,padding:'6px',minWidth:'160px',boxShadow:T.shadow}}>
             {items.map((item,i)=>item==='divider'
               ?<div key={i} style={{height:'1px',background:T.border,margin:'4px 0'}}/>
-              :<button key={i} onClick={()=>{item.action();setOpen(false);}} style={{...S.menuItem,color:item.danger?T.red:T.textMid}}
+              :<button key={i} onClick={()=>{item.action();setOpen(false);}} style={{display:'flex',alignItems:'center',gap:'9px',width:'100%',background:'none',border:'none',color:item.danger?T.red:T.textMid,padding:'10px 13px',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontFamily:T.sans,textAlign:'left'}}
                 onMouseEnter={e=>e.currentTarget.style.background=item.danger?T.redFade:T.primaryFade}
                 onMouseLeave={e=>e.currentTarget.style.background='none'}
               >{item.icon} {item.label}</button>
@@ -91,26 +113,19 @@ function DotsMenu({ items }) {
   );
 }
 
-// ── Unit picker (simplified inline) ──────────────────────────────
-const UNITS = ['mm','mm²','mm³','m','m²','m³','ml','L','g','kg','pcs','bag','sheet','bucket','length','set','Roll 100','Roll 500','Box 50','Box 100','packet','pallet','pair','Other'];
+// ── Unit picker ───────────────────────────────────────────────────
+const UNITS = ['mm','mm²','m','m²','m³','ml','L','g','kg','pcs','bag','sheet','bucket','length','set','Roll 100','Roll 500','Box 50','Box 100','packet','pallet','pair','Other'];
 
 function UnitPicker({ value, onChange }) {
   const [search, setSearch] = useState('');
   const filtered = UNITS.filter(u => u.toLowerCase().includes(search.toLowerCase()));
   return (
     <div>
-      {value && (
-        <div style={{display:'flex',gap:'8px',marginBottom:'8px'}}>
-          <div style={{flex:1,background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'6px',padding:'7px 12px',fontSize:'13px',color:T.accent,fontWeight:'700'}}>✓ {value}</div>
-          <button onClick={()=>{onChange('');setSearch('');}} style={{background:'none',border:`1px solid ${T.borderLight}`,color:T.textDim,borderRadius:'6px',padding:'7px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans}}>Change</button>
-        </div>
-      )}
+      {value&&<div style={{display:'flex',gap:'8px',marginBottom:'8px'}}><div style={{flex:1,background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'6px',padding:'7px 12px',fontSize:'13px',color:T.accent,fontWeight:'700'}}>✓ {value}</div><button onClick={()=>{onChange('');setSearch('');}} style={{background:'none',border:`1px solid ${T.borderLight}`,color:T.textDim,borderRadius:'6px',padding:'7px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans}}>Change</button></div>}
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search units…" style={{...S.input,marginBottom:'8px'}}/>
-      {(!value||search)&&(
-        <div style={{maxHeight:'180px',overflowY:'auto',borderRadius:'7px',border:`1px solid ${T.border}`,background:'rgba(0,0,0,0.25)'}}>
-          {filtered.map(u=><button key={u} onMouseDown={e=>{e.preventDefault();onChange(u);setSearch('');}} style={{display:'flex',width:'100%',background:value===u?T.primaryFade:'transparent',border:'none',borderBottom:`1px solid ${T.border}`,color:value===u?T.accent:'rgba(240,237,232,0.85)',padding:'12px 14px',cursor:'pointer',fontSize:'14px',fontFamily:T.sans,minHeight:'48px',alignItems:'center'}}>{u}</button>)}
-        </div>
-      )}
+      {(!value||search)&&<div style={{maxHeight:'180px',overflowY:'auto',borderRadius:'7px',border:`1px solid ${T.border}`,background:'rgba(0,0,0,0.25)'}}>
+        {filtered.map(u=><button key={u} onMouseDown={e=>{e.preventDefault();onChange(u);setSearch('');}} style={{display:'flex',width:'100%',background:value===u?T.primaryFade:'transparent',border:'none',borderBottom:`1px solid ${T.border}`,color:value===u?T.accent:'rgba(240,237,232,0.85)',padding:'12px 14px',cursor:'pointer',fontSize:'14px',fontFamily:T.sans,minHeight:'48px',alignItems:'center'}}>{u}</button>)}
+      </div>}
     </div>
   );
 }
@@ -132,7 +147,7 @@ function MaterialModal({ onSave, onClose }) {
       <div style={S.card} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>ADD MATERIAL</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
         <div style={{marginBottom:'12px'}}>
-          <div style={{...S.fieldLabel,color:errors.name?T.red:T.accent}}>MATERIAL NAME{errors.name?' — '+errors.name:''}</div>
+          <div style={{...S.fieldLabel,color:errors.name?T.red:T.accent}}>MATERIAL NAME{errors.name?' — Required':''}</div>
           <input autoFocus value={name} onChange={e=>{setName(e.target.value);setErrors(p=>({...p,name:''}));}} placeholder="e.g. River sand" style={{...S.input,border:`1px solid ${errors.name?T.red:T.primaryBorder}`}}/>
         </div>
         <div style={{marginBottom:'12px'}}>
@@ -140,7 +155,7 @@ function MaterialModal({ onSave, onClose }) {
           <input value={qty} onChange={e=>setQty(e.target.value)} type="number" min="0" step="any" placeholder="e.g. 2.5" style={S.input}/>
         </div>
         <div style={{marginBottom:'16px'}}>
-          <div style={{...S.fieldLabel,color:errors.unit?T.red:T.accent}}>UNIT{errors.unit?' — '+errors.unit:''}</div>
+          <div style={{...S.fieldLabel,color:errors.unit?T.red:T.accent}}>UNIT{errors.unit?' — Required':''}</div>
           <UnitPicker value={unit} onChange={v=>{setUnit(v);setErrors(p=>({...p,unit:''}));}}/>
         </div>
         <div style={{display:'flex',gap:'8px'}}>
@@ -152,12 +167,34 @@ function MaterialModal({ onSave, onClose }) {
   );
 }
 
+// ── Completion Modal (subtask tick with note) ─────────────────────
+function CompletionModal({ subtask, onSave, onClose }) {
+  const [note, setNote] = useState('');
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{...S.card,maxWidth:'380px'}} onClick={e=>e.stopPropagation()}>
+        <div style={S.mHead}><span style={S.mLabel}>MARK COMPLETE</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
+        <div style={{fontSize:'13px',color:T.textMid,fontFamily:T.sans,marginBottom:'14px',fontStyle:'italic'}}>{subtask.name}</div>
+        <div style={{marginBottom:'16px'}}>
+          <div style={S.fieldLabel}>COMPLETION NOTE (optional)</div>
+          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. Completed but needs sealing — revisit next week" rows={3} style={{...S.input,resize:'none'}} autoFocus/>
+        </div>
+        <div style={{display:'flex',gap:'8px'}}>
+          <button onClick={onClose} style={{...S.btnGhost,flex:1}}>Cancel</button>
+          <button onClick={()=>{onSave(note);onClose();}} style={{...S.btnPrimary,flex:2}}>Mark Complete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Task Details Modal ────────────────────────────────────────────
-function TaskDetailsModal({ task, rooms, onSave, onClose }) {
+function TaskDetailsModal({ task, rooms, users, onSave, onClose }) {
   const [notes,setNotes]=useState(task.notes||'');
   const [dueDate,setDueDate]=useState(task.due_date||'');
   const [priority,setPriority]=useState(task.priority||'medium');
   const [roomId,setRoomId]=useState(task.room_id||'');
+  const [assignedTo,setAssignedTo]=useState(task.assigned_to||'');
   return (
     <div style={S.overlay} onClick={onClose}>
       <div style={S.card} onClick={e=>e.stopPropagation()}>
@@ -166,8 +203,17 @@ function TaskDetailsModal({ task, rooms, onSave, onClose }) {
         <div style={{marginBottom:'12px'}}>
           <div style={S.fieldLabel}>PRIORITY</div>
           <div style={{display:'flex',gap:'6px'}}>
-            {['high','medium','low'].map(p=><button key={p} onClick={()=>setPriority(p)} style={{flex:1,background:priority===p?(p==='high'?T.red:p==='medium'?T.warn:T.accent):'rgba(255,255,255,0.05)',border:'none',color:priority===p?'#000':T.textMid,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:priority===p?'700':'400',textTransform:'capitalize'}}>{p}</button>)}
+            {[['high',T.red],['medium',T.warn],['low',T.accent]].map(([p,c])=>(
+              <button key={p} onClick={()=>setPriority(p)} style={{flex:1,background:priority===p?`${c}30`:'rgba(255,255,255,0.05)',border:`1px solid ${priority===p?c:T.border}`,color:priority===p?c:T.textMid,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:priority===p?'700':'400',textTransform:'capitalize'}}>{p}</button>
+            ))}
           </div>
+        </div>
+        <div style={{marginBottom:'12px'}}>
+          <div style={S.fieldLabel}>ASSIGN TO</div>
+          <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={{...S.input,appearance:'none',colorScheme:'dark',cursor:'pointer'}}>
+            <option value="">— Unassigned —</option>
+            {users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>)}
+          </select>
         </div>
         <div style={{marginBottom:'12px'}}>
           <div style={S.fieldLabel}>ROOM / AREA</div>
@@ -186,7 +232,7 @@ function TaskDetailsModal({ task, rooms, onSave, onClose }) {
         </div>
         <div style={{display:'flex',gap:'8px'}}>
           <button onClick={onClose} style={{...S.btnGhost,flex:1}}>Cancel</button>
-          <button onClick={()=>{onSave({notes,due_date:dueDate||null,priority,room_id:roomId||null});onClose();}} style={{...S.btnPrimary,flex:2}}>Save</button>
+          <button onClick={()=>{onSave({notes,due_date:dueDate||null,priority,room_id:roomId||null,assigned_to:assignedTo||null});onClose();}} style={{...S.btnPrimary,flex:2}}>Save</button>
         </div>
       </div>
     </div>
@@ -194,58 +240,84 @@ function TaskDetailsModal({ task, rooms, onSave, onClose }) {
 }
 
 // ── Material Row ──────────────────────────────────────────────────
-function MaterialRow({ mat, canDelete, onToggle, onDelete }) {
+function MaterialRow({ mat, canWrite, canDelete, onAdvance, onDelete }) {
   const [confirming, setConfirming] = useState(false);
-  const isAcquired = mat.status === 'acquired' || mat.acquired_at;
-  const missing = !mat.qty || !mat.unit;
+  const status = mat.status || 'needed';
+  const cfg = MAT_STATUS[status] || MAT_STATUS.needed;
+  const isComplete = status === 'used';
+
   return (
     <>
       {confirming&&<ConfirmDelete label={mat.name} onConfirm={onDelete} onClose={()=>setConfirming(false)}/>}
-      <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'7px 4px',borderRadius:'6px',background:isAcquired?T.primaryFade:'transparent',marginBottom:'3px'}}>
-        <button onClick={onToggle} style={{width:'18px',height:'18px',borderRadius:'3px',flexShrink:0,background:isAcquired?T.primary:'transparent',border:isAcquired?`2px solid ${T.primary}`:'2px solid rgba(255,255,255,0.2)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.text,outline:'none',padding:0}}>
-          {isAcquired&&<Ic.check/>}
-        </button>
-        <span style={{flex:1,fontSize:'13px',color:isAcquired?T.textDim:'rgba(240,237,232,0.85)',textDecoration:isAcquired?'line-through':'none',fontFamily:T.sans}}>{mat.name}</span>
-        {(mat.qty||mat.unit)&&<span style={{...S.pill,color:missing?T.warn:T.accent,background:missing?T.warnFade:T.accentFade}}>{missing?'⚠️ ':''}{mat.qty||'—'} {mat.unit||'no unit'}</span>}
-        {canDelete&&<button onClick={()=>setConfirming(true)} style={{background:'none',border:'none',color:T.textFaint,cursor:'pointer',padding:'2px',display:'flex'}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textFaint}><Ic.trash/></button>}
+      <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'7px 4px',borderRadius:'6px',marginBottom:'3px'}}>
+        <div style={{flex:1,minWidth:0}}>
+          <span style={{fontSize:'13px',color:isComplete?T.textDim:'rgba(240,237,232,0.85)',textDecoration:isComplete?'line-through':'none',fontFamily:T.sans}}>{mat.name}</span>
+          {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint,marginLeft:'8px'}}>{mat.qty} {mat.unit||''}</span>}
+          {mat.acquired_profile&&<div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'1px'}}>→ {mat.acquired_profile.full_name}</div>}
+        </div>
+        {canWrite&&!isComplete&&(
+          <button onClick={onAdvance} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+            {cfg.label} →
+          </button>
+        )}
+        {isComplete&&<span style={{fontSize:'10px',fontFamily:T.mono,color:T.accent,background:T.accentFade,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>✓ Used</span>}
+        {canDelete&&<button onClick={()=>setConfirming(true)} style={{background:'none',border:'none',color:T.textFaint,cursor:'pointer',padding:'2px',display:'flex',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textFaint}><Ic.trash/></button>}
       </div>
     </>
   );
 }
 
 // ── Subtask Row ───────────────────────────────────────────────────
-function SubtaskRow({ subtask, canManage, canDelete, onToggle, onDelete, onAddMaterial, onToggleMaterial, onDeleteMaterial }) {
+function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelete, onAddMaterial, onAdvanceMaterial, onDeleteMaterial }) {
   const [matOpen, setMatOpen] = useState(false);
   const [addingMat, setAddingMat] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
   const mats = subtask.materials || [];
-  const acq = mats.filter(m=>m.status==='acquired'||m.acquired_at).length;
+  const usedCount = mats.filter(m=>m.status==='used').length;
+
+  const handleToggle = () => {
+    if (!subtask.completed) {
+      setShowComplete(true);
+    } else {
+      onToggle(false, '');
+    }
+  };
+
   return (
     <div style={{borderLeft:`2px solid ${subtask.completed?'rgba(45,106,79,0.5)':T.border}`,marginLeft:'6px',paddingLeft:'14px',marginBottom:'8px'}}>
       {confirming&&<ConfirmDelete label={subtask.name} onConfirm={onDelete} onClose={()=>setConfirming(false)}/>}
       {addingMat&&<MaterialModal onSave={mat=>{onAddMaterial(subtask.id,mat);setAddingMat(false);}} onClose={()=>setAddingMat(false)}/>}
+      {showComplete&&<CompletionModal subtask={subtask} onSave={(note)=>onToggle(true,note)} onClose={()=>setShowComplete(false)}/>}
+
       <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'5px 0'}}>
-        <button onClick={onToggle} style={{width:'20px',height:'20px',flexShrink:0,borderRadius:'50%',background:subtask.completed?T.primary:'transparent',border:subtask.completed?`2px solid ${T.primary}`:'2px solid rgba(255,255,255,0.22)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.text,outline:'none',padding:0}}>
+        <button onClick={handleToggle} style={{width:'20px',height:'20px',flexShrink:0,borderRadius:'50%',background:subtask.completed?T.primary:'transparent',border:subtask.completed?`2px solid ${T.primary}`:'2px solid rgba(255,255,255,0.22)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.text,outline:'none',padding:0}}>
           {subtask.completed&&<Ic.check/>}
         </button>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:'14px',fontFamily:T.sans,color:subtask.completed?T.textDim:'rgba(240,237,232,0.9)',textDecoration:subtask.completed?'line-through':'none'}}>{subtask.name}</div>
-          {subtask.completed&&subtask.completed_by_name&&<div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'2px'}}>✓ {subtask.completed_by_name} · {fmtDate(subtask.completed_at)}</div>}
+          {subtask.completed&&(subtask.completed_profile||subtask.completion_note)&&(
+            <div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'2px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
+              {subtask.completed_profile&&<span>✓ {subtask.completed_profile.full_name} · {fmtDateTime(subtask.completed_at)}</span>}
+              {subtask.completion_note&&<span style={{color:T.textDim,fontStyle:'italic'}}>"{subtask.completion_note}"</span>}
+            </div>
+          )}
         </div>
-        <button onClick={()=>setMatOpen(!matOpen)} style={{display:'flex',alignItems:'center',gap:'4px',background:matOpen?T.primaryFade:T.surface2,border:`1px solid ${matOpen?T.primaryBorder:T.border}`,borderRadius:'4px',padding:'3px 7px',cursor:'pointer',color:mats.length>0?(acq===mats.length?T.accent:T.textMid):T.textFaint,fontSize:'11px',fontFamily:T.mono,whiteSpace:'nowrap'}}>
-          {mats.length>0?`${acq}/${mats.length}`:'mats'} {Ic.chevron(matOpen)}
+        <button onClick={()=>setMatOpen(!matOpen)} style={{display:'flex',alignItems:'center',gap:'4px',background:matOpen?T.primaryFade:T.surface2,border:`1px solid ${matOpen?T.primaryBorder:T.border}`,borderRadius:'4px',padding:'3px 7px',cursor:'pointer',color:mats.length>0?(usedCount===mats.length?T.accent:T.textMid):T.textFaint,fontSize:'11px',fontFamily:T.mono,whiteSpace:'nowrap'}}>
+          {mats.length>0?`${usedCount}/${mats.length}`:'mats'} {Ic.chevron(matOpen)}
         </button>
         {canDelete&&<button onClick={()=>setConfirming(true)} style={{background:'none',border:'none',color:T.textFaint,cursor:'pointer',padding:'2px',display:'flex'}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textFaint}><Ic.trash/></button>}
       </div>
+
       {matOpen&&(
         <div style={{background:'rgba(0,0,0,0.2)',borderRadius:'8px',padding:'10px 12px',margin:'4px 0 8px',border:`1px solid ${T.border}`}}>
           <div style={{...S.fieldLabel,marginBottom:'8px'}}>MATERIALS</div>
           {mats.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontStyle:'italic',marginBottom:'8px',fontFamily:T.sans}}>None yet</div>}
-          {mats.map(m=><MaterialRow key={m.id} mat={m} canDelete={canDelete}
-            onToggle={()=>onToggleMaterial(m.id, m.status!=='acquired'&&!m.acquired_at)}
+          {mats.map(m=><MaterialRow key={m.id} mat={m} canWrite={canWrite} canDelete={canDelete}
+            onAdvance={()=>onAdvanceMaterial(m.id)}
             onDelete={()=>onDeleteMaterial(m.id)}
           />)}
-          {canManage&&<button onClick={()=>setAddingMat(true)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px dashed ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'5px',padding:'5px 10px',cursor:'pointer',fontFamily:T.sans,marginTop:'6px'}}>
+          {canWrite&&<button onClick={()=>setAddingMat(true)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px dashed ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'5px',padding:'5px 10px',cursor:'pointer',fontFamily:T.sans,marginTop:'6px'}}>
             {Ic.plus(11)} Add material
           </button>}
         </div>
@@ -255,7 +327,7 @@ function SubtaskRow({ subtask, canManage, canDelete, onToggle, onDelete, onAddMa
 }
 
 // ── Task Card ─────────────────────────────────────────────────────
-function TaskCard({ task, rooms, isFirst, isLast, canManage, canDelete, onUpdate, onDelete, onMove, onAddSubtask, onToggleSubtask, onDeleteSubtask, onAddMaterial, onToggleMaterial, onDeleteMaterial }) {
+function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, canDelete, onUpdate, onDelete, onMove, onAddSubtask, onToggleSubtask, onDeleteSubtask, onAddMaterial, onAdvanceMaterial, onDeleteMaterial }) {
   const [expanded, setExpanded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -277,8 +349,8 @@ function TaskCard({ task, rooms, isFirst, isLast, canManage, canDelete, onUpdate
   return (
     <>
       {confirming&&<ConfirmDelete label={task.name} onConfirm={()=>onDelete(task.id)} onClose={()=>setConfirming(false)}/>}
-      {showDetails&&<TaskDetailsModal task={task} rooms={rooms} onSave={d=>onUpdate(task.id,d)} onClose={()=>setShowDetails(false)}/>}
-      <div style={{background:T.surface2,border:`1px solid ${allDone?'rgba(45,106,79,0.5)':T.border}`,borderRadius:'12px',marginBottom:'10px',overflow:'hidden',transition:'all 0.3s'}}>
+      {showDetails&&<TaskDetailsModal task={task} rooms={rooms} users={users} onSave={d=>onUpdate(task.id,d)} onClose={()=>setShowDetails(false)}/>}
+      <div style={{background:T.surface2,border:`1px solid ${allDone?'rgba(45,106,79,0.5)':T.border}`,borderRadius:'12px',marginBottom:'10px',overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'13px 14px',cursor:'pointer',borderBottom:expanded?`1px solid ${T.border}`:'none'}} onClick={()=>setExpanded(!expanded)}>
           {canManage&&<div style={{display:'flex',flexDirection:'column',gap:'1px',flexShrink:0}} onClick={e=>e.stopPropagation()}>
             <MoveBtn dir={-1} disabled={isFirst}/><MoveBtn dir={1} disabled={isLast}/>
@@ -286,8 +358,9 @@ function TaskCard({ task, rooms, isFirst, isLast, canManage, canDelete, onUpdate
           <div style={{width:'9px',height:'9px',borderRadius:'50%',flexShrink:0,background:allDone?T.primary:'rgba(255,255,255,0.12)',boxShadow:allDone?`0 0 8px ${T.primary}`:'none',transition:'all 0.3s'}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:'14px',fontWeight:'700',color:allDone?T.textDim:T.text,textDecoration:allDone?'line-through':'none',fontFamily:T.sans,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.name}</div>
-            <div style={{display:'flex',gap:'8px',marginTop:'3px',flexWrap:'wrap',alignItems:'center'}}>
+            <div style={{display:'flex',gap:'6px',marginTop:'3px',flexWrap:'wrap',alignItems:'center'}}>
               {task.priority&&<span style={{fontSize:'9px',fontFamily:T.mono,color:priorityColor,background:`${priorityColor}20`,borderRadius:'3px',padding:'1px 5px',textTransform:'uppercase'}}>{task.priority}</span>}
+              {task.assigned_profile&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.person/> {task.assigned_profile.full_name}</span>}
               {task.due_date&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.cal/> {task.due_date}</span>}
               {task.notes&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.note/> note</span>}
             </div>
@@ -304,11 +377,11 @@ function TaskCard({ task, rooms, isFirst, isLast, canManage, canDelete, onUpdate
           <div style={{padding:'14px 16px'}}>
             {task.notes&&<div style={{background:'rgba(0,0,0,0.15)',border:`1px solid ${T.border}`,borderRadius:'7px',padding:'10px 12px',marginBottom:'12px',fontSize:'12px',color:T.textMid,fontFamily:T.sans,lineHeight:'1.6'}}>{task.notes}</div>}
             {subs.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontFamily:T.sans,marginBottom:'10px',fontStyle:'italic'}}>No subtasks yet</div>}
-            {subs.map(sub=><SubtaskRow key={sub.id} subtask={sub} canManage={canManage} canDelete={canDelete}
-              onToggle={()=>onToggleSubtask(sub.id,!sub.completed)}
+            {subs.map(sub=><SubtaskRow key={sub.id} subtask={sub} canManage={canManage} canWrite={canWrite} canDelete={canDelete}
+              onToggle={(completed,note)=>onToggleSubtask(sub.id,completed,note)}
               onDelete={()=>onDeleteSubtask(sub.id)}
               onAddMaterial={onAddMaterial}
-              onToggleMaterial={(mid,acq)=>onToggleMaterial(mid,acq)}
+              onAdvanceMaterial={onAdvanceMaterial}
               onDeleteMaterial={onDeleteMaterial}
             />)}
             {canManage&&<div style={{marginTop:'12px'}}>
@@ -333,9 +406,10 @@ function TaskCard({ task, rooms, isFirst, isLast, canManage, canDelete, onUpdate
 
 // ── Tasks Tab ─────────────────────────────────────────────────────
 function TasksTab({ property }) {
-  const { canManage, canDelete, isAdmin } = useAuth();
-  const { tasks, loading, addTask, updateTask, deleteTask, moveTask, addSubtask, updateSubtask, deleteSubtask, addMaterial, updateMaterial, deleteMaterial } = useTasks(property.id);
+  const { canManage, canDelete, isAdmin, isTechnician } = useAuth();
+  const { tasks, loading, addTask, updateTask, deleteTask, moveTask, addSubtask, updateSubtask, deleteSubtask, addMaterial, advanceMaterialStatus, deleteMaterial } = useTasks(property.id);
   const { rooms } = useRooms(property.id);
+  const { users } = useUsers();
   const [newTask, setNewTask] = useState('');
   const [filter, setFilter] = useState('active');
 
@@ -343,8 +417,10 @@ function TasksTab({ property }) {
   const filtered = tasks.filter(t => filter==='active'?!isComplete(t):filter==='completed'?isComplete(t):true);
   const completedCount = tasks.filter(isComplete).length;
 
-  const handleToggleMaterial = (matId, acquired) => {
-    updateMaterial(matId, { status: acquired ? 'acquired' : 'needed' });
+  const canWrite = canManage || isAdmin || isTechnician;
+
+  const handleToggleSubtask = (sid, completed, note) => {
+    updateSubtask(sid, { completed, completion_note: note || null });
   };
 
   if (loading) return <div style={{textAlign:'center',padding:'40px',color:T.textDim,fontFamily:T.mono,fontSize:'13px'}}>Loading tasks…</div>;
@@ -358,23 +434,23 @@ function TasksTab({ property }) {
           <button onClick={()=>{if(newTask.trim()){addTask(newTask.trim());setNewTask('');}}} style={{...S.btnPrimary,padding:'7px 14px',fontSize:'12px',whiteSpace:'nowrap'}}>Add</button>
         </div>
       )}
-      <div style={{display:'flex',gap:'6px',marginBottom:'16px'}}>
+      <div style={{display:'flex',gap:'6px',marginBottom:'16px',alignItems:'center'}}>
         {['active','all','completed'].map(f=><button key={f} onClick={()=>setFilter(f)} style={{background:filter===f?T.primary:'rgba(255,255,255,0.05)',border:'none',color:filter===f?T.text:T.textDim,borderRadius:'5px',padding:'5px 12px',cursor:'pointer',fontSize:'11px',fontWeight:filter===f?'700':'500',fontFamily:T.sans,textTransform:'capitalize'}}>{f}</button>)}
-        <span style={{marginLeft:'auto',fontSize:'11px',color:T.textDim,fontFamily:T.mono,alignSelf:'center'}}>{completedCount}/{tasks.length} done</span>
+        <span style={{marginLeft:'auto',fontSize:'11px',color:T.textDim,fontFamily:T.mono}}>{completedCount}/{tasks.length} done</span>
       </div>
       {filtered.length===0?(
         <div style={{textAlign:'center',padding:'50px 20px',color:T.textFaint,fontFamily:T.mono,fontSize:'13px'}}>
           {filter==='completed'?'No completed tasks yet':filter==='active'?'All caught up! 🎉':'No tasks — add one above'}
         </div>
       ):filtered.map((task,idx)=>(
-        <TaskCard key={task.id} task={task} rooms={rooms} isFirst={idx===0} isLast={idx===filtered.length-1}
-          canManage={canManage||isAdmin} canDelete={canDelete||isAdmin}
+        <TaskCard key={task.id} task={task} rooms={rooms} users={users} isFirst={idx===0} isLast={idx===filtered.length-1}
+          canManage={canManage||isAdmin} canWrite={canWrite} canDelete={canDelete||isAdmin}
           onUpdate={updateTask} onDelete={deleteTask} onMove={moveTask}
           onAddSubtask={addSubtask}
-          onToggleSubtask={(sid,completed)=>updateSubtask(sid,{completed})}
+          onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={deleteSubtask}
           onAddMaterial={addMaterial}
-          onToggleMaterial={handleToggleMaterial}
+          onAdvanceMaterial={advanceMaterialStatus}
           onDeleteMaterial={deleteMaterial}
         />
       ))}
@@ -386,8 +462,8 @@ function TasksTab({ property }) {
 function ServiceLogModal({ service, onSave, onClose }) {
   const [form, setForm] = useState({
     doneDate: new Date().toISOString().split('T')[0],
-    company: '', invoiceNumber: '', invoiceAmount: '',
-    warranty: false, warrantyMonths: '', notes: ''
+    company:'', invoiceNumber:'', invoiceAmount:'',
+    warranty:false, warrantyMonths:'', notes:''
   });
   const fld = (label, child) => <div style={{marginBottom:'12px'}}><div style={S.fieldLabel}>{label}</div>{child}</div>;
   return (
@@ -405,7 +481,7 @@ function ServiceLogModal({ service, onSave, onClose }) {
           </label>
           {form.warranty&&<input value={form.warrantyMonths} onChange={e=>setForm(p=>({...p,warrantyMonths:e.target.value}))} type="number" min="0" placeholder="Warranty duration (months)" style={{...S.input,marginTop:'8px'}}/>}
         </div>
-        {fld('NOTES (optional)',<input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Replaced pump impeller, all good" style={S.input}/>)}
+        {fld('NOTES (optional)',<input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Replaced filter, all good" style={S.input}/>)}
         <div style={{display:'flex',gap:'8px'}}>
           <button onClick={onClose} style={{...S.btnGhost,flex:1}}>Cancel</button>
           <button onClick={()=>{onSave(form);onClose();}} style={{...S.btnPrimary,flex:2}}>Log Service</button>
@@ -422,6 +498,7 @@ function ServicesTab({ property }) {
   const [adding, setAdding] = useState(false);
   const [loggingId, setLoggingId] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
+  const [toast, setToast] = useState('');
   const [form, setForm] = useState({ name:'', freqMonths:'12', isRecurring:true, notes:'' });
 
   const loggingService = services.find(s=>s.id===loggingId);
@@ -438,7 +515,8 @@ function ServicesTab({ property }) {
 
   return (
     <div>
-      {loggingService&&<ServiceLogModal service={loggingService} onSave={data=>logService(loggingId,data)} onClose={()=>setLoggingId(null)}/>}
+      {toast&&<Toast message={toast} onDismiss={()=>setToast('')}/>}
+      {loggingService&&<ServiceLogModal service={loggingService} onSave={data=>logService(loggingId,data,name=>setToast(`${name} logged successfully`))} onClose={()=>setLoggingId(null)}/>}
       {confirmingService&&<ConfirmDelete label={confirmingService.name} onConfirm={()=>deleteService(confirmingId)} onClose={()=>setConfirmingId(null)}/>}
 
       {services.map(svc=>{
@@ -464,11 +542,13 @@ function ServicesTab({ property }) {
                 {svc.next_due&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono}}>Due {fmtDate(svc.next_due)}</span>}
               </div>
             </div>
-            <div style={{display:'flex',gap:'8px',marginTop:'10px'}}>
+            <div style={{display:'flex',gap:'8px',marginTop:'10px',flexWrap:'wrap'}}>
               <button onClick={()=>setLoggingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,color:T.accent,fontSize:'12px',borderRadius:'6px',padding:'6px 12px',cursor:'pointer',fontFamily:T.sans,fontWeight:'600'}}>
                 <Ic.bell/> Log Service Done
               </button>
-              {(canManage||isAdmin)&&<button onClick={()=>setConfirmingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px solid ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'6px',padding:'6px 10px',cursor:'pointer',fontFamily:T.sans}}>
+              {(canManage||isAdmin)&&<button onClick={()=>setConfirmingId(svc.id)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px solid ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'6px',padding:'6px 10px',cursor:'pointer',fontFamily:T.sans}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.red;e.currentTarget.style.color=T.red;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textDim;}}>
                 <Ic.trash/> Remove
               </button>}
             </div>
@@ -478,8 +558,8 @@ function ServicesTab({ property }) {
                 {logs.slice(0,2).map(log=>(
                   <div key={log.id} style={{display:'flex',gap:'8px',fontSize:'12px',color:T.textDim,fontFamily:T.sans,padding:'4px 0',borderBottom:`1px solid ${T.border}`}}>
                     <span style={{color:T.accent,fontFamily:T.mono,flexShrink:0}}>{fmtDate(log.done_date)}</span>
-                    <span>{log.company||log.notes||'Service completed'}</span>
-                    {log.invoice_number&&<span style={{color:T.textFaint,fontFamily:T.mono,marginLeft:'auto'}}>#{log.invoice_number}</span>}
+                    <span style={{flex:1}}>{log.company||log.notes||'Service completed'}</span>
+                    {log.invoice_number&&<span style={{color:T.textFaint,fontFamily:T.mono}}>#{log.invoice_number}</span>}
                   </div>
                 ))}
               </div>
@@ -515,8 +595,8 @@ function ServicesTab({ property }) {
 
 // ── Shopping Tab ──────────────────────────────────────────────────
 function ShoppingTab({ property }) {
-  const { tasks, updateMaterial } = useTasks(property.id);
-  const [showAcquired, setShowAcquired] = useState(true);
+  const { tasks, advanceMaterialStatus } = useTasks(property.id);
+  const [showAll, setShowAll] = useState(false);
   const [shareModal, setShareModal] = useState(false);
 
   const groups = tasks.map(task => {
@@ -526,16 +606,18 @@ function ShoppingTab({ property }) {
 
   const allItems = groups.flatMap(g=>g.items);
   const total = allItems.length;
-  const acquired = allItems.filter(m=>m.status==='acquired'||m.acquired_at).length;
+  const used = allItems.filter(m=>m.status==='used').length;
+
+  const statusOrder = { needed:0, ordered:1, delivered:2, used:3 };
 
   const shareText = () => {
     const date = new Date().toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
     const lines = [`📋 SHOPPING LIST — ${property.name.toUpperCase()}`,date,''];
     groups.forEach(g=>{
-      const pending = g.items.filter(m=>m.status!=='acquired'&&!m.acquired_at);
-      if(!pending.length)return;
+      const needed = g.items.filter(m=>m.status==='needed'||m.status==='ordered');
+      if(!needed.length)return;
       lines.push('▸ '+g.taskName.toUpperCase());
-      pending.forEach(m=>lines.push(`  • ${m.name}${m.qty?' — '+m.qty+' '+(m.unit||''):''}${!m.qty||!m.unit?' ⚠️':''}`));
+      needed.forEach(m=>lines.push(`  • ${m.name}${m.qty?' — '+m.qty+' '+(m.unit||''):''}  [${(MAT_STATUS[m.status]||MAT_STATUS.needed).label}]`));
       lines.push('');
     });
     lines.push('Property Tracker');
@@ -566,18 +648,33 @@ function ShoppingTab({ property }) {
           </div>
         </div>
       )}
+
       <div style={{background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'10px',padding:'14px 16px',marginBottom:'16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'12px'}}>
-          <div style={{flex:1}}><div style={{fontSize:'20px',fontWeight:'700',color:T.text,fontFamily:T.sans}}>{total-acquired} <span style={{fontSize:'13px',fontWeight:'400',color:T.textDim}}>items to get</span></div><div style={{fontSize:'11px',color:T.textDim,fontFamily:T.mono,marginTop:'2px'}}>{acquired}/{total} acquired</div></div>
-          <div style={{width:'70px'}}><div style={{height:'6px',background:'rgba(255,255,255,0.08)',borderRadius:'3px'}}><div style={{height:'100%',background:T.primary,borderRadius:'3px',width:`${total>0?(acquired/total)*100:0}%`,transition:'width 0.4s'}}/></div></div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:'20px',fontWeight:'700',color:T.text,fontFamily:T.sans}}>{total-used} <span style={{fontSize:'13px',fontWeight:'400',color:T.textDim}}>items pending</span></div>
+            <div style={{fontSize:'11px',color:T.textDim,fontFamily:T.mono,marginTop:'2px'}}>{used}/{total} used</div>
+          </div>
+          <div style={{width:'70px'}}><div style={{height:'6px',background:'rgba(255,255,255,0.08)',borderRadius:'3px'}}><div style={{height:'100%',background:T.primary,borderRadius:'3px',width:`${total>0?(used/total)*100:0}%`,transition:'width 0.4s'}}/></div></div>
+        </div>
+        {/* Status legend */}
+        <div style={{display:'flex',gap:'8px',marginBottom:'12px',flexWrap:'wrap'}}>
+          {Object.entries(MAT_STATUS).map(([k,v])=>(
+            <span key={k} style={{fontSize:'10px',fontFamily:T.mono,color:v.color,background:v.bg,borderRadius:'4px',padding:'2px 7px'}}>
+              {allItems.filter(m=>(m.status||'needed')===k).length} {v.label}
+            </span>
+          ))}
         </div>
         <div style={{display:'flex',gap:'8px'}}>
-          <button onClick={()=>setShowAcquired(!showAcquired)} style={{flex:1,background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,color:T.textDim,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'11px',fontFamily:T.sans}}>{showAcquired?'Hide':'Show'} acquired</button>
+          <button onClick={()=>setShowAll(!showAll)} style={{flex:1,background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,color:T.textDim,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'11px',fontFamily:T.sans}}>{showAll?'Hide used':'Show all'}</button>
           <button onClick={handleShare} style={{flex:2,background:T.primary,border:'none',color:T.text,fontWeight:'700',borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>📤 Share via WhatsApp</button>
         </div>
       </div>
+
       {groups.map(g=>{
-        const visible = showAcquired?g.items:g.items.filter(m=>m.status!=='acquired'&&!m.acquired_at);
+        const visible = g.items
+          .filter(m=>showAll||m.status!=='used')
+          .sort((a,b)=>statusOrder[a.status||'needed']-statusOrder[b.status||'needed']);
         if(!visible.length)return null;
         return <div key={g.taskName} style={{marginBottom:'16px'}}>
           <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px',paddingBottom:'6px',borderBottom:`1px solid ${T.border}`}}>
@@ -585,14 +682,17 @@ function ShoppingTab({ property }) {
             <span style={{fontSize:'12px',fontWeight:'700',color:T.textMid,fontFamily:T.sans,flex:1}}>{g.taskName}</span>
           </div>
           {visible.map(mat=>{
-            const isAcq = mat.status==='acquired'||!!mat.acquired_at;
-            return <div key={mat.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'8px',marginBottom:'4px',background:isAcq?T.primaryFade:T.surface2,border:`1px solid ${isAcq?T.primaryBorder:T.border}`,cursor:'pointer'}} onClick={()=>updateMaterial(mat.id,{status:isAcq?'needed':'acquired'})}>
-              <button style={{width:'22px',height:'22px',flexShrink:0,borderRadius:'5px',background:isAcq?T.primary:'transparent',border:isAcq?`2px solid ${T.primary}`:'2px solid rgba(255,255,255,0.18)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.text,outline:'none',padding:0}}>{isAcq&&<Ic.check/>}</button>
+            const status = mat.status||'needed';
+            const cfg = MAT_STATUS[status];
+            const isUsed = status==='used';
+            return <div key={mat.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'8px',marginBottom:'4px',background:isUsed?T.primaryFade:T.surface2,border:`1px solid ${isUsed?T.primaryBorder:T.border}`}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:'14px',fontFamily:T.sans,color:isAcq?T.textDim:T.text,textDecoration:isAcq?'line-through':'none'}}>{mat.name}</div>
-                {mat.qty&&<span style={S.pill}>{mat.qty} {mat.unit||''}</span>}
+                <div style={{fontSize:'14px',fontFamily:T.sans,color:isUsed?T.textDim:T.text,textDecoration:isUsed?'line-through':'none'}}>{mat.name}</div>
+                {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint}}>{mat.qty} {mat.unit||''}</span>}
               </div>
-              {isAcq&&<span style={{fontSize:'11px',color:T.accent,fontFamily:T.mono}}>✓ got it</span>}
+              <button onClick={()=>!isUsed&&advanceMaterialStatus(mat.id)} disabled={isUsed} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:isUsed?'default':'pointer',whiteSpace:'nowrap'}}>
+                {isUsed?'✓ Used':`${cfg.label} →`}
+              </button>
             </div>;
           })}
         </div>;
@@ -648,32 +748,38 @@ function RoomsTab({ property }) {
 }
 
 // ── Main PropertyPage ─────────────────────────────────────────────
-export default function PropertyPage({ property, properties, onBack, onEditProperty }) {
+export default function PropertyPage({ property, properties, onBack }) {
   const [tab, setTab] = useState('tasks');
+  const [panelOpen, setPanelOpen] = useState(false);
   const { tasks } = useTasks(property.id);
   const { services } = useServices(property.id);
 
-  const pendingMats = tasks.flatMap(t=>(t.subtasks||[]).flatMap(s=>(s.materials||[]))).filter(m=>m.status!=='acquired'&&!m.acquired_at).length;
+  const pendingMats = tasks.flatMap(t=>(t.subtasks||[]).flatMap(s=>(s.materials||[]))).filter(m=>m.status!=='used').length;
   const overdueSvcs = services.filter(s=>daysUntil(s.next_due)!==null&&daysUntil(s.next_due)<0).length;
 
   const isCommercial = property.type === 'commercial';
-  const TABS = [
-    {id:'tasks',    label:'Tasks',    icon:<Ic.tool/>},
-    {id:'services', label:'Services', icon:<Ic.wrench/>},
-    {id:'shopping', label:'Shopping', icon:<Ic.cart/>},
-    {id:'rooms',    label:'Rooms',    icon:<Ic.home/>},
-    ...(isCommercial ? [
-      {id:'assets',    label:'Assets',    icon:<Ic.wrench/>},
-      {id:'livestock', label:'Livestock', icon:<Ic.wrench/>},
-    ] : []),
+
+  const PRIMARY_TABS = [
+    {id:'tasks',     label:'Tasks',    icon:<Ic.tool/>},
+    {id:'services',  label:'Services', icon:<Ic.wrench/>},
   ];
+  const SECONDARY_TABS = [
+    {id:'shopping',  label:'Shopping List', icon:<Ic.cart/>},
+    {id:'rooms',     label:'Rooms & Areas', icon:<Ic.home/>},
+    ...(isCommercial?[
+      {id:'assets',    label:'Asset Register', icon:<Ic.box/>},
+      {id:'livestock', label:'Livestock',      icon:<Ic.cow/>},
+    ]:[]),
+  ];
+  const allTabs = [...PRIMARY_TABS, ...SECONDARY_TABS];
+  const activeTab = allTabs.find(t=>t.id===tab);
 
   return (
     <div style={{minHeight:'100vh',background:T.bg,fontFamily:T.sans}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 
       {/* Header */}
-      <div style={{background:'rgba(15,20,18,0.95)',borderBottom:`1px solid ${T.border}`,backdropFilter:'blur(12px)',position:'sticky',top:0,zIndex:10}}>
+      <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,boxShadow:T.shadow,position:'sticky',top:0,zIndex:10}}>
         <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:'10px'}}>
           <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:'4px',background:'none',border:'none',color:T.textDim,cursor:'pointer',fontFamily:T.sans,fontSize:'12px',padding:'4px 0'}}
             onMouseEnter={e=>e.currentTarget.style.color=T.accent} onMouseLeave={e=>e.currentTarget.style.color=T.textDim}>
@@ -685,24 +791,55 @@ export default function PropertyPage({ property, properties, onBack, onEditPrope
             <div style={{fontSize:'11px',color:T.textDim,fontFamily:T.mono,marginTop:'1px',textTransform:'capitalize'}}>{property.type}</div>
           </div>
         </div>
-        <div style={{display:'flex',borderTop:'1px solid rgba(255,255,255,0.05)',overflowX:'auto'}}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'5px',padding:'11px 8px',background:'none',border:'none',cursor:'pointer',borderBottom:tab===t.id?`2px solid ${T.primary}`:'2px solid transparent',color:tab===t.id?T.accent:T.textDim,fontSize:'12px',fontWeight:tab===t.id?'700':'500',fontFamily:T.sans,transition:'all 0.15s',whiteSpace:'nowrap',position:'relative'}}>
+        {/* Primary tab bar + More button */}
+        <div style={{display:'flex',borderTop:`1px solid ${T.border}`}}>
+          {PRIMARY_TABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',padding:'12px 8px',background:'none',border:'none',cursor:'pointer',borderBottom:tab===t.id?`2px solid ${T.primary}`:'2px solid transparent',color:tab===t.id?T.primary:T.textDim,fontSize:'13px',fontWeight:tab===t.id?'700':'500',fontFamily:T.sans,transition:'all 0.15s',position:'relative'}}>
               {t.icon} {t.label}
-              {t.id==='shopping'&&pendingMats>0&&<span style={{background:T.primary,color:T.text,borderRadius:'10px',padding:'0 5px',fontSize:'9px',fontFamily:T.mono,fontWeight:'700'}}>{pendingMats}</span>}
-              {t.id==='services'&&overdueSvcs>0&&<span style={{background:T.red,color:'#fff',borderRadius:'10px',padding:'0 5px',fontSize:'9px',fontFamily:T.mono,fontWeight:'700'}}>{overdueSvcs}</span>}
+              {t.id==='services'&&overdueSvcs>0&&<span style={{background:T.red,color:'#fff',borderRadius:'10px',padding:'1px 5px',fontSize:'9px',fontFamily:T.mono,fontWeight:'700'}}>{overdueSvcs}</span>}
             </button>
           ))}
+          <button onClick={()=>setPanelOpen(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',padding:'12px 16px',background:'none',border:'none',cursor:'pointer',borderBottom:SECONDARY_TABS.some(t=>t.id===tab)?`2px solid ${T.primary}`:'2px solid transparent',color:SECONDARY_TABS.some(t=>t.id===tab)?T.primary:T.textDim,fontSize:'13px',fontWeight:'500',fontFamily:T.sans,transition:'all 0.15s',position:'relative',flexShrink:0}}>
+            {SECONDARY_TABS.some(t=>t.id===tab)&&activeTab&&<>{activeTab.icon} {activeTab.label}</>}
+            {!SECONDARY_TABS.some(t=>t.id===tab)&&<>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="12" cy="8" r="1.4" fill="currentColor"/></svg>
+              More
+            </>}
+            {pendingMats>0&&<span style={{background:T.primary,color:'#fff',borderRadius:'10px',padding:'1px 5px',fontSize:'9px',fontFamily:T.mono,fontWeight:'700'}}>{pendingMats}</span>}
+          </button>
         </div>
       </div>
 
+      {/* Slide-in side panel for secondary tabs */}
+      {panelOpen&&(
+        <>
+          <div style={{position:'fixed',inset:0,zIndex:90,background:'rgba(0,0,0,0.25)'}} onClick={()=>setPanelOpen(false)}/>
+          <div style={{position:'fixed',top:0,right:0,bottom:0,zIndex:100,width:'280px',background:T.surface,boxShadow:'-4px 0 24px rgba(0,0,0,0.15)',display:'flex',flexDirection:'column',animation:'slideIn 0.2s ease'}}>
+            <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+            <div style={{padding:'20px 20px 12px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:'12px',fontFamily:T.mono,color:T.primary,letterSpacing:'0.08em'}}>MORE OPTIONS</span>
+              <button onClick={()=>setPanelOpen(false)} style={{background:'none',border:'none',color:T.textDim,cursor:'pointer',fontSize:'22px',lineHeight:1}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+              {SECONDARY_TABS.map(t=>(
+                <button key={t.id} onClick={()=>{setTab(t.id);setPanelOpen(false);}} style={{display:'flex',alignItems:'center',gap:'12px',width:'100%',padding:'14px 16px',background:tab===t.id?T.primaryFade:'none',border:`1px solid ${tab===t.id?T.primaryBorder:'transparent'}`,borderRadius:'10px',cursor:'pointer',marginBottom:'6px',textAlign:'left',transition:'all 0.15s'}}>
+                  <span style={{fontSize:'20px'}}>{t.icon}</span>
+                  <span style={{fontSize:'14px',fontWeight:tab===t.id?'700':'500',color:tab===t.id?T.primary:T.text,fontFamily:T.sans}}>{t.label}</span>
+                  {t.id==='shopping'&&pendingMats>0&&<span style={{marginLeft:'auto',background:T.primary,color:'#fff',borderRadius:'10px',padding:'1px 7px',fontSize:'10px',fontFamily:T.mono,fontWeight:'700'}}>{pendingMats}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       <div style={{maxWidth:'680px',margin:'0 auto',padding:'20px 14px'}}>
-        {tab==='tasks'&&<TasksTab property={property}/>}
-        {tab==='services'&&<ServicesTab property={property}/>}
-        {tab==='shopping'&&<ShoppingTab property={property}/>}
-        {tab==='rooms'&&<RoomsTab property={property}/>}
-        {tab==='assets'&&<AssetsTab property={property} properties={properties||[]}/>}
-        {tab==='livestock'&&<LivestockTab property={property}/>}
+        {tab==='tasks'     &&<TasksTab property={property}/>}
+        {tab==='services'  &&<ServicesTab property={property}/>}
+        {tab==='shopping'  &&<ShoppingTab property={property}/>}
+        {tab==='rooms'     &&<RoomsTab property={property}/>}
+        {tab==='assets'    &&<AssetsTab property={property} properties={properties||[]}/>}
+        {tab==='livestock' &&<LivestockTab property={property}/>}
       </div>
     </div>
   );

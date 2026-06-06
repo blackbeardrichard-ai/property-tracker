@@ -13,16 +13,22 @@ export function useTasks(propertyId) {
     setLoading(true);
     const { data } = await supabase
       .from('tasks')
-      .select(`*, subtasks(*, materials(*))`)
+      .select(`
+        *,
+        assigned_profile:assigned_to(id, full_name),
+        subtasks(
+          *,
+          completed_profile:completed_by(id, full_name),
+          materials(*, acquired_profile:acquired_by(id, full_name))
+        )
+      `)
       .eq('property_id', propertyId)
       .order('position');
     setTasks(data || []);
     setLoading(false);
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   // ── Tasks ─────────────────────────────────────────────────────
   const addTask = async (name) => {
@@ -37,6 +43,10 @@ export function useTasks(propertyId) {
 
   const updateTask = async (taskId, updates) => {
     await supabase.from('tasks').update(updates).eq('id', taskId);
+    if (updates.assigned_to) {
+      const task = tasks.find(t => t.id === taskId);
+      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'assigned', entityType: 'task', entityId: taskId, entityName: task?.name });
+    }
     fetchTasks();
   };
 
@@ -71,12 +81,17 @@ export function useTasks(propertyId) {
     if ('completed' in updates) {
       patch.completed_by = updates.completed ? user.id : null;
       patch.completed_at = updates.completed ? new Date().toISOString() : null;
+      // completion_note handled separately if passed
     }
     await supabase.from('subtasks').update(patch).eq('id', subtaskId);
-    // Log completion
     if ('completed' in updates) {
       const sub = tasks.flatMap(t => t.subtasks || []).find(s => s.id === subtaskId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: updates.completed ? 'completed' : 'reopened', entityType: 'subtask', entityId: subtaskId, entityName: sub?.name });
+      await logAction({
+        propertyId, userId: user.id, userName: profile?.full_name,
+        action: updates.completed ? 'completed' : 'reopened',
+        entityType: 'subtask', entityId: subtaskId, entityName: sub?.name,
+        newValue: updates.completion_note ? { note: updates.completion_note } : null
+      });
     }
     fetchTasks();
   };
@@ -87,6 +102,8 @@ export function useTasks(propertyId) {
   };
 
   // ── Materials ─────────────────────────────────────────────────
+  const MATERIAL_STATUSES = ['needed', 'ordered', 'delivered', 'used'];
+
   const addMaterial = async (subtaskId, mat) => {
     await supabase.from('materials').insert({
       subtask_id: subtaskId, property_id: propertyId,
@@ -99,14 +116,27 @@ export function useTasks(propertyId) {
 
   const updateMaterial = async (materialId, updates) => {
     const patch = { ...updates };
-    if (updates.status === 'acquired' || updates.acquired) {
+    // Track who moved to each status
+    if (updates.status && updates.status !== 'needed') {
       patch.acquired_by = user.id;
       patch.acquired_at = new Date().toISOString();
       const mat = tasks.flatMap(t => t.subtasks || []).flatMap(s => s.materials || []).find(m => m.id === materialId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'acquired', entityType: 'material', entityId: materialId, entityName: mat?.name });
+      await logAction({
+        propertyId, userId: user.id, userName: profile?.full_name,
+        action: updates.status, // 'ordered', 'delivered', 'used'
+        entityType: 'material', entityId: materialId, entityName: mat?.name
+      });
     }
     await supabase.from('materials').update(patch).eq('id', materialId);
     fetchTasks();
+  };
+
+  const advanceMaterialStatus = async (materialId) => {
+    const mat = tasks.flatMap(t => t.subtasks || []).flatMap(s => s.materials || []).find(m => m.id === materialId);
+    if (!mat) return;
+    const currentIdx = MATERIAL_STATUSES.indexOf(mat.status || 'needed');
+    const nextStatus = MATERIAL_STATUSES[Math.min(currentIdx + 1, MATERIAL_STATUSES.length - 1)];
+    await updateMaterial(materialId, { status: nextStatus });
   };
 
   const deleteMaterial = async (materialId) => {
@@ -118,6 +148,7 @@ export function useTasks(propertyId) {
     tasks, loading, fetchTasks,
     addTask, updateTask, deleteTask, moveTask,
     addSubtask, updateSubtask, deleteSubtask,
-    addMaterial, updateMaterial, deleteMaterial,
+    addMaterial, updateMaterial, deleteMaterial, advanceMaterialStatus,
+    MATERIAL_STATUSES,
   };
 }

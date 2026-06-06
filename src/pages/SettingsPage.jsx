@@ -327,7 +327,7 @@ export default function SettingsPage({ onBack, properties }) {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 
       {/* Header */}
-      <div style={{ background:'rgba(15,20,18,0.95)', borderBottom:`1px solid ${T.border}`, backdropFilter:'blur(12px)', position:'sticky', top:0, zIndex:10 }}>
+      <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, boxShadow:T.shadow, position:'sticky', top:0, zIndex:10 }}>
         <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', gap:'10px' }}>
           <button onClick={onBack} style={{ display:'flex', alignItems:'center', gap:'4px', background:'none', border:'none', color:T.textDim, cursor:'pointer', fontFamily:T.sans, fontSize:'12px', padding:'4px 0' }}
             onMouseEnter={e=>e.currentTarget.style.color=T.accent} onMouseLeave={e=>e.currentTarget.style.color=T.textDim}>

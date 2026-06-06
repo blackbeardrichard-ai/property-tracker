@@ -27,7 +27,7 @@ function RoleBadge({ role }) {
 
 // ── Profile Tab ───────────────────────────────────────────────────
 function ProfileTab() {
-  const { profile, refetchProfile } = useAuth();
+  const { profile, refetchProfile, signOutEverywhere } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
   const [currentPw, setCurrentPw] = useState('');
@@ -36,6 +36,7 @@ function ProfileTab() {
   const [profileMsg, setProfileMsg] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const [saving, setSaving] = useState(false);
+  const [signingOutAll, setSigningOutAll] = useState(false);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -96,6 +97,20 @@ function ProfileTab() {
           </button>
           {pwMsg && <span style={{ fontSize:'13px', color:pwMsg.includes('Error')?T.red:T.accent, fontFamily:T.sans }}>{pwMsg}</span>}
         </div>
+      </div>
+
+      {/* Sessions & security */}
+      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px', marginTop:'16px' }}>
+        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'12px' }}>SESSIONS &amp; SECURITY</div>
+        <div style={{ fontSize:'13px', color:T.textMid, fontFamily:T.sans, lineHeight:'1.6', marginBottom:'14px' }}>
+          If you've signed in on a shared or lost device, you can sign out of every device at once. You'll need to log in again here afterwards.
+        </div>
+        <button onClick={async()=>{ setSigningOutAll(true); await signOutEverywhere(); }} disabled={signingOutAll}
+          style={{ display:'inline-flex', alignItems:'center', gap:'7px', background:'none', border:`1px solid ${T.red}`, color:T.red, borderRadius:'8px', padding:'9px 16px', cursor:signingOutAll?'default':'pointer', fontSize:'13px', fontFamily:T.sans, fontWeight:'600', opacity:signingOutAll?0.7:1 }}
+          onMouseEnter={e=>{ if(!signingOutAll){ e.currentTarget.style.background=T.redFade; } }}
+          onMouseLeave={e=>{ e.currentTarget.style.background='none'; }}>
+          <Ic.key/> {signingOutAll ? 'Signing out…' : 'Sign out of all devices'}
+        </button>
       </div>
     </div>
   );
@@ -200,7 +215,7 @@ function PropertyAccessRow({ property, userId }) {
   const hasAccess = !!assignment;
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'rgba(0,0,0,0.15)', borderRadius:'7px', marginBottom:'4px' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
       <span style={{ fontSize:'16px' }}>{property.icon}</span>
       <span style={{ flex:1, fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{property.name}</span>
       {hasAccess ? (
@@ -223,6 +238,52 @@ function PropertyAccessRow({ property, userId }) {
 }
 
 // ── Audit Tab ─────────────────────────────────────────────────────
+
+// Human-readable entity labels (singular, lowercase — sentence builder capitalises where needed)
+const ENTITY_LABEL = {
+  task:'task', subtask:'subtask', material:'material', service:'service',
+  asset:'asset', livestock:'animal', property:'property', room:'room', user:'user',
+};
+const MAT_STATUS_LABEL = { needed:'Needed', ordered:'Ordered', delivered:'Delivered', used:'Used' };
+
+// Turn a structured audit row into a natural sentence.
+// Returns { verb, sentence } — verb is the coloured action word, sentence is the rest.
+function describeLog(log, propsById) {
+  const who = log.user_name || 'Someone';
+  const ent = ENTITY_LABEL[log.entity_type] || log.entity_type || 'item';
+  const name = log.entity_name ? `"${log.entity_name}"` : `a ${ent}`;
+  const nv = log.new_value || {};
+  const a = log.action;
+
+  // Material status changes are stored with the status as the action verb.
+  if (log.entity_type === 'material' && MAT_STATUS_LABEL[a]) {
+    return { verb:'changed', sentence:`material ${name} to ${MAT_STATUS_LABEL[a]}` };
+  }
+
+  switch (a) {
+    case 'created':   return { verb:'added',     sentence:`a new ${ent}, ${name}` };
+    case 'deleted':   return { verb:'deleted',   sentence:`${ent} ${name}` };
+    case 'updated':   return { verb:'updated',   sentence:`${ent} ${name}` };
+    case 'assigned':  return { verb:'assigned',  sentence:`${ent} ${name}` };
+    case 'completed': return { verb:'completed', sentence:`${ent} ${name}${nv.note?` — “${nv.note}”`:''}` };
+    case 'reopened':  return { verb:'reopened',  sentence:`${ent} ${name}` };
+    case 'acquired':  return { verb:'acquired',  sentence:`material ${name}` };
+    case 'archived':  return { verb:'archived',  sentence:`${ent} ${name}` };
+    case 'logged': {
+      const co = nv.company ? ` (by ${nv.company})` : '';
+      const dt = nv.doneDate ? ` on ${nv.doneDate}` : '';
+      return { verb:'logged', sentence:`a completion for service ${name}${co}${dt}` };
+    }
+    case 'moved': {
+      const to = nv.toPropertyId && propsById[nv.toPropertyId] ? propsById[nv.toPropertyId].name : 'another property';
+      const reason = nv.reason ? ` — ${nv.reason}` : '';
+      return { verb:'moved', sentence:`${ent} ${name} to ${to}${reason}` };
+    }
+    default:
+      return { verb:a||'changed', sentence:`${ent} ${name}` };
+  }
+}
+
 function AuditTab({ properties }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -242,7 +303,12 @@ function AuditTab({ properties }) {
   };
 
   const fmtDateTime = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-  const actionColor = a => a==='deleted'?T.red:a==='completed'||a==='acquired'?T.accent:T.textMid;
+  const actionColor = v => v==='deleted'||v==='archived'?T.red
+    : v==='completed'||v==='acquired'||v==='logged'?T.accent
+    : v==='moved'||v==='assigned'?T.warn
+    : v==='changed'?T.primary
+    : T.textMid;
+  const propsById = Object.fromEntries((properties||[]).map(p=>[p.id,p]));
 
   return (
     <div>
@@ -259,18 +325,26 @@ function AuditTab({ properties }) {
         <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading audit log…</div>
       ) : logs.length === 0 ? (
         <div style={{ textAlign:'center', padding:'40px', color:T.textFaint, fontFamily:T.mono, fontSize:'13px' }}>No activity recorded yet</div>
-      ) : logs.map(log => (
+      ) : logs.map(log => {
+        const { verb, sentence } = describeLog(log, propsById);
+        const prop = propsById[log.property_id];
+        return (
         <div key={log.id} style={{ display:'flex', gap:'12px', padding:'10px 14px', background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'8px', marginBottom:'6px' }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-              <span style={{ fontSize:'13px', fontWeight:'600', color:T.text, fontFamily:T.sans }}>{log.user_name||'Unknown'}</span>
-              <span style={{ fontSize:'12px', color:actionColor(log.action), fontFamily:T.mono, textTransform:'capitalize' }}>{log.action}</span>
-              <span style={{ fontSize:'12px', color:T.textMid, fontFamily:T.sans }}>{log.entity_name||log.entity_type}</span>
+            <div style={{ fontSize:'13px', color:T.text, fontFamily:T.sans, lineHeight:'1.5' }}>
+              <span style={{ fontWeight:'700' }}>{log.user_name||'Someone'}</span>
+              {' '}
+              <span style={{ color:actionColor(verb), fontWeight:'600' }}>{verb}</span>
+              {' '}
+              <span style={{ color:T.textMid }}>{sentence}</span>
             </div>
-            <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginTop:'3px' }}>{fmtDateTime(log.created_at)}</div>
+            <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginTop:'3px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+              <span>{fmtDateTime(log.created_at)}</span>
+              {prop && filter==='all' && <span>· {prop.icon} {prop.name}</span>}
+            </div>
           </div>
         </div>
-      ))}
+      );})}
     </div>
   );
 }

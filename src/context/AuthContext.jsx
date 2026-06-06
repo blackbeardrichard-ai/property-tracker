@@ -48,6 +48,14 @@ export function AuthProvider({ children }) {
     setProfile(null);
   }
 
+  // Revoke ALL sessions for this user across every device, then clear local state.
+  async function signOutEverywhere() {
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    setUser(null);
+    setProfile(null);
+    return { error };
+  }
+
   async function resetPassword(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
@@ -81,7 +89,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ user, profile, loading, signIn, signOut, resetPassword, isAdmin, isManager, isTechnician, canDelete, canWrite, canManage, can, refetchProfile: () => fetchProfile(user?.id) }}>
+    <AuthCtx.Provider value={{ user, profile, loading, signIn, signOut, signOutEverywhere, resetPassword, isAdmin, isManager, isTechnician, canDelete, canWrite, canManage, can, refetchProfile: () => fetchProfile(user?.id) }}>
       {children}
     </AuthCtx.Provider>
   );

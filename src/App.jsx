@@ -12,6 +12,7 @@ function Inner() {
   const { properties } = useProperties();
   const [view, setView] = useState('properties'); // properties | property | settings
   const [activeProperty, setActiveProperty] = useState(null);
+  const [selectedTab, setSelectedTab] = useState(undefined);
 
   if (loading) return (
     <div style={{ minHeight:'100vh', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -29,13 +30,14 @@ function Inner() {
     <PropertyPage
       property={activeProperty}
       properties={properties}
-      onBack={() => { setActiveProperty(null); setView('properties'); }}
+      onBack={() => { setActiveProperty(null); setSelectedTab(undefined); setView('properties'); }}
+      initialTab={selectedTab}
     />
   );
 
   return (
     <PropertySelectorPage
-      onSelect={p => { setActiveProperty(p); setView('property'); }}
+      onSelect={(p, tab) => { setActiveProperty(p); setSelectedTab(tab); setView('property'); }}
       onSettings={() => setView('settings')}
     />
   );

@@ -796,8 +796,8 @@ function RoomsTab({ property }) {
 }
 
 // ── Main PropertyPage ─────────────────────────────────────────────
-export default function PropertyPage({ property, properties, onBack }) {
-  const [tab, setTab] = useState('tasks');
+export default function PropertyPage({ property, properties, onBack, initialTab }) {
+  const [tab, setTab] = useState(initialTab || 'tasks');
   const [panelOpen, setPanelOpen] = useState(false);
   const { tasks } = useTasks(property.id);
   const { services } = useServices(property.id);

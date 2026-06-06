@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useProperties } from '../hooks/useProperties';
+import { useDashboardStats } from '../hooks/useDashboardStats';
 import { T, S } from '../lib/theme';
 
 const ICONS = ['🏠','🌾','🌿','🏡','🏗️','🏢','🌲','🏕️','🌴','🏔️'];
@@ -8,6 +9,7 @@ const ICONS = ['🏠','🌾','🌿','🏡','🏗️','🏢','🌲','🏕️','�
 export default function PropertySelectorPage({ onSelect, onSettings }) {
   const { profile, isAdmin, signOut } = useAuth();
   const { properties, loading, addProperty } = useProperties();
+  const { stats, totals, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name:'', type:'residential', icon:'🏠', address:'', description:'' });
   const [saving, setSaving] = useState(false);
@@ -21,6 +23,12 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
     setForm({ name:'', type:'residential', icon:'🏠', address:'', description:'' });
     setAdding(false); setSaving(false);
   };
+
+  // Navigate into a property, optionally landing on a specific tab.
+  // Backward-compatible: onSelect(prop) still works for callers that ignore the 2nd arg.
+  const go = (prop, tab) => onSelect(prop, tab);
+
+  const showSummary = !statsLoading && (totals.overdue > 0 || totals.pending > 0);
 
   return (
     <div style={{ minHeight:'100vh', background:T.bg, fontFamily:T.sans }}>
@@ -51,10 +59,31 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
           </div>
         </div>
 
+        {/* Overview summary bar — totals across all properties */}
+        {showSummary && (
+          <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
+            {totals.overdue > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', background:T.redFade, border:`1px solid ${T.red}40`, borderRadius:'10px', padding:'10px 14px' }}>
+                <span style={{ fontSize:'18px', fontWeight:'700', color:T.red, fontFamily:T.mono }}>{totals.overdue}</span>
+                <span style={{ fontSize:'12px', color:T.textMid }}>overdue service{totals.overdue===1?'':'s'}</span>
+              </div>
+            )}
+            {totals.pending > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, borderRadius:'10px', padding:'10px 14px' }}>
+                <span style={{ fontSize:'18px', fontWeight:'700', color:T.primary, fontFamily:T.mono }}>{totals.pending}</span>
+                <span style={{ fontSize:'12px', color:T.textMid }}>pending material{totals.pending===1?'':'s'}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Property list */}
-        {properties.map(prop => (
-          <button key={prop.id} onClick={() => onSelect(prop)}
-            style={{ display:'flex', alignItems:'center', gap:'14px', width:'100%', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'16px 18px', cursor:'pointer', marginBottom:'10px', textAlign:'left', transition:'all 0.15s', boxShadow:T.shadow }}
+        {properties.map(prop => {
+          const st = stats[prop.id] || { overdue:0, pending:0 };
+          return (
+          <div key={prop.id}
+            style={{ display:'flex', alignItems:'center', gap:'14px', width:'100%', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'16px 18px', marginBottom:'10px', textAlign:'left', transition:'all 0.15s', boxShadow:T.shadow, cursor:'pointer' }}
+            onClick={() => go(prop)}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.primary; e.currentTarget.style.boxShadow=`0 4px 20px ${T.primaryFade}`; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; e.currentTarget.style.boxShadow=T.shadow; }}
           >
@@ -69,12 +98,39 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
                 </span>
                 {prop.address && <span style={{ fontSize:'11px', color:T.textFaint }}>{prop.address}</span>}
               </div>
+              {/* Tappable stat badges */}
+              {(st.overdue > 0 || st.pending > 0) && (
+                <div style={{ display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap' }}>
+                  {st.overdue > 0 && (
+                    <span role="button" tabIndex={0}
+                      onClick={e=>{ e.stopPropagation(); go(prop, 'services'); }}
+                      onKeyDown={e=>{ if(e.key==='Enter'||e.key===' '){ e.stopPropagation(); e.preventDefault(); go(prop, 'services'); } }}
+                      style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.redFade, border:`1px solid ${T.red}40`, color:T.red, borderRadius:'8px', padding:'3px 9px', fontSize:'11px', fontWeight:'600', cursor:'pointer' }}
+                      onMouseEnter={e=>{ e.currentTarget.style.background=`${T.red}22`; }}
+                      onMouseLeave={e=>{ e.currentTarget.style.background=T.redFade; }}
+                    >
+                      <span style={{ fontFamily:T.mono, fontWeight:'700' }}>{st.overdue}</span> overdue
+                    </span>
+                  )}
+                  {st.pending > 0 && (
+                    <span role="button" tabIndex={0}
+                      onClick={e=>{ e.stopPropagation(); go(prop, 'shopping'); }}
+                      onKeyDown={e=>{ if(e.key==='Enter'||e.key===' '){ e.stopPropagation(); e.preventDefault(); go(prop, 'shopping'); } }}
+                      style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, color:T.primary, borderRadius:'8px', padding:'3px 9px', fontSize:'11px', fontWeight:'600', cursor:'pointer' }}
+                      onMouseEnter={e=>{ e.currentTarget.style.background=`${T.primary}22`; }}
+                      onMouseLeave={e=>{ e.currentTarget.style.background=T.primaryFade; }}
+                    >
+                      <span style={{ fontFamily:T.mono, fontWeight:'700' }}>{st.pending}</span> pending
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color:T.textDim, flexShrink:0 }}>
               <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-          </button>
-        ))}
+          </div>
+        );})}
 
         {/* Add property */}
         {isAdmin && !adding && (

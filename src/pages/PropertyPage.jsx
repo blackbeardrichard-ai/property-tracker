@@ -282,7 +282,7 @@ function MaterialRow({ mat, canWrite, canDelete, onAdvance, onDelete }) {
       {confirming&&<ConfirmDelete label={mat.name} onConfirm={onDelete} onClose={()=>setConfirming(false)}/>}
       <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'7px 4px',borderRadius:'6px',marginBottom:'3px'}}>
         <div style={{flex:1,minWidth:0}}>
-          <span style={{fontSize:'13px',color:isComplete?T.textDim:'rgba(240,237,232,0.85)',textDecoration:isComplete?'line-through':'none',fontFamily:T.sans}}>{mat.name}</span>
+          <span style={{fontSize:'13px',color:isComplete?T.textDim:T.text,textDecoration:isComplete?'line-through':'none',fontFamily:T.sans}}>{mat.name}</span>
           {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint,marginLeft:'8px'}}>{mat.qty} {mat.unit||''}</span>}
           {mat.acquired_profile&&<div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'1px'}}>→ {mat.acquired_profile.full_name}</div>}
         </div>
@@ -316,17 +316,17 @@ function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelet
   };
 
   return (
-    <div style={{borderLeft:`2px solid ${subtask.completed?'rgba(45,106,79,0.5)':T.border}`,marginLeft:'6px',paddingLeft:'14px',marginBottom:'8px'}}>
+    <div style={{borderLeft:`2px solid ${subtask.completed?T.primary:T.border}`,marginLeft:'6px',paddingLeft:'14px',marginBottom:'8px'}}>
       {confirming&&<ConfirmDelete label={subtask.name} onConfirm={onDelete} onClose={()=>setConfirming(false)}/>}
       {addingMat&&<MaterialModal onSave={mat=>{onAddMaterial(subtask.id,mat);setAddingMat(false);}} onClose={()=>setAddingMat(false)}/>}
       {showComplete&&<CompletionModal subtask={subtask} onSave={(note)=>onToggle(true,note)} onClose={()=>setShowComplete(false)}/>}
 
       <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'5px 0'}}>
-        <button onClick={handleToggle} style={{width:'20px',height:'20px',flexShrink:0,borderRadius:'50%',background:subtask.completed?T.primary:'transparent',border:subtask.completed?`2px solid ${T.primary}`:'2px solid rgba(255,255,255,0.22)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.text,outline:'none',padding:0}}>
+        <button onClick={handleToggle} style={{width:'20px',height:'20px',flexShrink:0,borderRadius:'50%',background:subtask.completed?T.primary:'transparent',border:subtask.completed?`2px solid ${T.primary}`:`2px solid ${T.textDim}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',outline:'none',padding:0}}>
           {subtask.completed&&<Ic.check/>}
         </button>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:'14px',fontFamily:T.sans,color:subtask.completed?T.textDim:'rgba(240,237,232,0.9)',textDecoration:subtask.completed?'line-through':'none'}}>{subtask.name}</div>
+          <div style={{fontSize:'14px',fontFamily:T.sans,color:subtask.completed?T.textDim:T.text,textDecoration:subtask.completed?'line-through':'none'}}>{subtask.name}</div>
           {subtask.completed&&(subtask.completed_profile||subtask.completion_note)&&(
             <div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'2px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
               {subtask.completed_profile&&<span>✓ {subtask.completed_profile.full_name} · {fmtDateTime(subtask.completed_at)}</span>}
@@ -341,7 +341,7 @@ function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelet
       </div>
 
       {matOpen&&(
-        <div style={{background:'rgba(0,0,0,0.2)',borderRadius:'8px',padding:'10px 12px',margin:'4px 0 8px',border:`1px solid ${T.border}`}}>
+        <div style={{background:T.surface2,borderRadius:'8px',padding:'10px 12px',margin:'4px 0 8px',border:`1px solid ${T.border}`}}>
           <div style={{...S.fieldLabel,marginBottom:'8px'}}>MATERIALS</div>
           {mats.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontStyle:'italic',marginBottom:'8px',fontFamily:T.sans}}>None yet</div>}
           {mats.map(m=><MaterialRow key={m.id} mat={m} canWrite={canWrite} canDelete={canDelete}
@@ -381,12 +381,12 @@ function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, ca
     <>
       {confirming&&<ConfirmDelete label={task.name} onConfirm={()=>onDelete(task.id)} onClose={()=>setConfirming(false)}/>}
       {showDetails&&<TaskDetailsModal task={task} rooms={rooms} users={users} onSave={d=>onUpdate(task.id,d)} onClose={()=>setShowDetails(false)}/>}
-      <div style={{background:T.surface2,border:`1px solid ${allDone?'rgba(45,106,79,0.5)':T.border}`,borderRadius:'12px',marginBottom:'10px',overflow:'hidden'}}>
+      <div style={{background:T.surface,border:`1px solid ${allDone?T.primary:T.border}`,borderRadius:'12px',marginBottom:'10px',overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'13px 14px',cursor:'pointer',borderBottom:expanded?`1px solid ${T.border}`:'none'}} onClick={()=>setExpanded(!expanded)}>
           {canManage&&<div style={{display:'flex',flexDirection:'column',gap:'1px',flexShrink:0}} onClick={e=>e.stopPropagation()}>
             <MoveBtn dir={-1} disabled={isFirst}/><MoveBtn dir={1} disabled={isLast}/>
           </div>}
-          <div style={{width:'9px',height:'9px',borderRadius:'50%',flexShrink:0,background:allDone?T.primary:'rgba(255,255,255,0.12)',boxShadow:allDone?`0 0 8px ${T.primary}`:'none',transition:'all 0.3s'}}/>
+          <div style={{width:'9px',height:'9px',borderRadius:'50%',flexShrink:0,background:allDone?T.primary:T.border,boxShadow:allDone?`0 0 8px ${T.primaryFade}`:'none',transition:'all 0.3s'}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:'14px',fontWeight:'700',color:allDone?T.textDim:T.text,textDecoration:allDone?'line-through':'none',fontFamily:T.sans,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.name}</div>
             <div style={{display:'flex',gap:'6px',marginTop:'3px',flexWrap:'wrap',alignItems:'center'}}>
@@ -403,10 +403,10 @@ function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, ca
           ]}/>}
           <div style={{color:T.textDim}}>{Ic.chevron(expanded)}</div>
         </div>
-        {subs.length>0&&<div style={{height:'2px',background:'rgba(255,255,255,0.04)'}}><div style={{height:'100%',background:T.primary,width:`${progress}%`,transition:'width 0.4s'}}/></div>}
+        {subs.length>0&&<div style={{height:'2px',background:T.border}}><div style={{height:'100%',background:T.primary,width:`${progress}%`,transition:'width 0.4s'}}/></div>}
         {expanded&&(
           <div style={{padding:'14px 16px'}}>
-            {task.notes&&<div style={{background:'rgba(0,0,0,0.15)',border:`1px solid ${T.border}`,borderRadius:'7px',padding:'10px 12px',marginBottom:'12px',fontSize:'12px',color:T.textMid,fontFamily:T.sans,lineHeight:'1.6'}}>{task.notes}</div>}
+            {task.notes&&<div style={{background:T.surface2,border:`1px solid ${T.border}`,borderRadius:'7px',padding:'10px 12px',marginBottom:'12px',fontSize:'12px',color:T.textMid,fontFamily:T.sans,lineHeight:'1.6'}}>{task.notes}</div>}
             {subs.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontFamily:T.sans,marginBottom:'10px',fontStyle:'italic'}}>No subtasks yet</div>}
             {subs.map(sub=><SubtaskRow key={sub.id} subtask={sub} canManage={canManage} canWrite={canWrite} canDelete={canDelete}
               onToggle={(completed,note)=>onToggleSubtask(sub.id,completed,note)}

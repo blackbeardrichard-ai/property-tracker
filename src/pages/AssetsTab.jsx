@@ -43,7 +43,7 @@ function DotsMenu({ items }) {
       {open && (
         <>
           <div style={{ position:'fixed', inset:0, zIndex:140 }} onClick={()=>setOpen(false)}/>
-          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:'#1e2b27', border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
+          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:T.popoverBg, border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
             {items.map((item,i) => item==='divider'
               ? <div key={i} style={{ height:'1px', background:T.border, margin:'4px 0' }}/>
               : <button key={i} onClick={()=>{item.action();setOpen(false);}} style={{ display:'flex', alignItems:'center', gap:'9px', width:'100%', background:'none', border:'none', color:item.danger?T.red:T.textMid, padding:'10px 13px', borderRadius:'7px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans, textAlign:'left' }}
@@ -76,7 +76,7 @@ function AddAssetModal({ onSave, onClose }) {
       <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>ADD ASSET</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
         {fld('ASSET NAME *', <input autoFocus value={form.name} onChange={f('name')} placeholder="e.g. John Deere Tractor" style={S.input}/>)}
-        {fld('CATEGORY', <select value={form.category} onChange={f('category')} style={{ ...S.input, appearance:'none', colorScheme:'dark', cursor:'pointer' }}>
+        {fld('CATEGORY', <select value={form.category} onChange={f('category')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
           {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
         </select>)}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
@@ -88,11 +88,11 @@ function AddAssetModal({ onSave, onClose }) {
           <div>{fld('YEAR', <input value={form.year} onChange={f('year')} type="number" min="1900" max="2099" placeholder="e.g. 2020" style={S.input}/>)}</div>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('PURCHASE DATE', <input value={form.purchase_date} onChange={f('purchase_date')} type="date" style={{ ...S.input, colorScheme:'dark' }}/>)}</div>
+          <div>{fld('PURCHASE DATE', <input value={form.purchase_date} onChange={f('purchase_date')} type="date" style={{ ...S.input }}/>)}</div>
           <div>{fld('PURCHASE PRICE (R)', <input value={form.purchase_price} onChange={f('purchase_price')} type="number" min="0" step="0.01" placeholder="e.g. 450000" style={S.input}/>)}</div>
         </div>
         {fld('CONDITION', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:'rgba(255,255,255,0.05)', border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
+          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:T.controlBg, border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
         </div>)}
         {fld('NOTES (optional)', <textarea value={form.notes} onChange={f('notes')} rows={2} placeholder="Any additional details…" style={{ ...S.input, resize:'none' }}/>)}
         <div style={{ display:'flex', gap:'8px' }}>
@@ -117,16 +117,16 @@ function AssetServiceModal({ asset, onSave, onClose }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>LOG SERVICE — {asset.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-        {fld('DATE SERVICED *', <input type="date" value={form.doneDate} onChange={f('doneDate')} style={{ ...S.input, colorScheme:'dark' }}/>)}
+        {fld('DATE SERVICED *', <input type="date" value={form.doneDate} onChange={f('doneDate')} style={{ ...S.input }}/>)}
         {fld('DESCRIPTION *', <input value={form.description} onChange={f('description')} placeholder="e.g. 500hr service, oil and filters changed" style={S.input}/>)}
         {fld('COMPANY / TECHNICIAN', <input value={form.company} onChange={f('company')} placeholder="e.g. Deere & Co Service Centre" style={S.input}/>)}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
           <div>{fld('INVOICE NUMBER', <input value={form.invoiceNumber} onChange={f('invoiceNumber')} placeholder="e.g. INV-001" style={S.input}/>)}</div>
           <div>{fld('INVOICE AMOUNT (R)', <input value={form.invoiceAmount} onChange={f('invoiceAmount')} type="number" min="0" step="0.01" placeholder="e.g. 12500" style={S.input}/>)}</div>
         </div>
-        {fld('NEXT SERVICE DATE', <input type="date" value={form.nextService} onChange={f('nextService')} style={{ ...S.input, colorScheme:'dark' }}/>)}
+        {fld('NEXT SERVICE DATE', <input type="date" value={form.nextService} onChange={f('nextService')} style={{ ...S.input }}/>)}
         {fld('CONDITION AFTER SERVICE', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:'rgba(255,255,255,0.05)', border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
+          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:T.controlBg, border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
         </div>)}
         <div style={{ display:'flex', gap:'8px' }}>
           <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
@@ -148,7 +148,7 @@ function MoveAssetModal({ asset, properties, currentPropertyId, onSave, onClose 
         <div style={S.mHead}><span style={S.mLabel}>MOVE ASSET — {asset.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
         <div style={{ marginBottom:'12px' }}>
           <div style={S.fieldLabel}>MOVE TO PROPERTY</div>
-          <select value={toPropertyId} onChange={e=>setToPropertyId(e.target.value)} style={{ ...S.input, appearance:'none', colorScheme:'dark', cursor:'pointer' }}>
+          <select value={toPropertyId} onChange={e=>setToPropertyId(e.target.value)} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
             <option value="">— Select property —</option>
             {otherProperties.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
           </select>
@@ -290,7 +290,7 @@ export default function AssetsTab({ property, properties }) {
       {categories.length > 1 && (
         <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
           {categories.map(c=>(
-            <button key={c} onClick={()=>setFilter(c)} style={{ background:filter===c?T.primary:'rgba(255,255,255,0.05)', border:'none', color:filter===c?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:filter===c?'700':'400' }}>
+            <button key={c} onClick={()=>setFilter(c)} style={{ background:filter===c?T.primary:T.controlBg, border:'none', color:filter===c?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:filter===c?'700':'400' }}>
               {c}
             </button>
           ))}

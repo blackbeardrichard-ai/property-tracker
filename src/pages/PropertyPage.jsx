@@ -38,7 +38,7 @@ const fmtDateTime = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digi
 
 // Material status config
 const MAT_STATUS = {
-  needed:    { label:'Needed',    color:T.textDim,  bg:'rgba(255,255,255,0.06)', next:'ordered'   },
+  needed:    { label:'Needed',    color:T.textDim,  bg:T.controlBg, next:'ordered'   },
   ordered:   { label:'Ordered',   color:T.warn,     bg:T.warnFade,              next:'delivered'  },
   delivered: { label:'Delivered', color:'#6EC6F0',  bg:'rgba(110,198,240,0.12)',next:'used'       },
   used:      { label:'Used',      color:T.accent,   bg:T.accentFade,            next:null         },
@@ -100,7 +100,7 @@ function DotsMenu({ items }) {
       {open&&(
         <>
           <div style={{position:'fixed',inset:0,zIndex:140}} onClick={()=>setOpen(false)}/>
-          <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:'#1e2b27',border:`1px solid ${T.borderLight}`,borderRadius:T.radius,padding:'6px',minWidth:'160px',boxShadow:T.shadow}}>
+          <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:T.popoverBg,border:`1px solid ${T.borderLight}`,borderRadius:T.radius,padding:'6px',minWidth:'160px',boxShadow:T.shadow}}>
             {items.map((item,i)=>item==='divider'
               ?<div key={i} style={{height:'1px',background:T.border,margin:'4px 0'}}/>
               :<button key={i} onClick={()=>{item.action();setOpen(false);}} style={{display:'flex',alignItems:'center',gap:'9px',width:'100%',background:'none',border:'none',color:item.danger?T.red:T.textMid,padding:'10px 13px',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontFamily:T.sans,textAlign:'left'}}
@@ -252,20 +252,20 @@ function TaskDetailsModal({ task, rooms, users, onSave, onClose }) {
           <div style={S.fieldLabel}>PRIORITY</div>
           <div style={{display:'flex',gap:'6px'}}>
             {[['high',T.red],['medium',T.warn],['low',T.accent]].map(([p,c])=>(
-              <button key={p} onClick={()=>setPriority(p)} style={{flex:1,background:priority===p?`${c}30`:'rgba(255,255,255,0.05)',border:`1px solid ${priority===p?c:T.border}`,color:priority===p?c:T.textMid,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:priority===p?'700':'400',textTransform:'capitalize'}}>{p}</button>
+              <button key={p} onClick={()=>setPriority(p)} style={{flex:1,background:priority===p?`${c}30`:T.controlBg,border:`1px solid ${priority===p?c:T.border}`,color:priority===p?c:T.textMid,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:priority===p?'700':'400',textTransform:'capitalize'}}>{p}</button>
             ))}
           </div>
         </div>
         <div style={{marginBottom:'12px'}}>
           <div style={S.fieldLabel}>ASSIGN TO</div>
-          <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={{...S.input,appearance:'none',colorScheme:'dark',cursor:'pointer'}}>
+          <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={{...S.input,appearance:'none',cursor:'pointer'}}>
             <option value="">— Unassigned —</option>
             {users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>)}
           </select>
         </div>
         <div style={{marginBottom:'12px'}}>
           <div style={S.fieldLabel}>ROOM / AREA</div>
-          <select value={roomId} onChange={e=>setRoomId(e.target.value)} style={{...S.input,appearance:'none',colorScheme:'dark',cursor:'pointer'}}>
+          <select value={roomId} onChange={e=>setRoomId(e.target.value)} style={{...S.input,appearance:'none',cursor:'pointer'}}>
             <option value="">— None —</option>
             {rooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
@@ -276,7 +276,7 @@ function TaskDetailsModal({ task, rooms, users, onSave, onClose }) {
         </div>
         <div style={{marginBottom:'20px'}}>
           <div style={S.fieldLabel}>DUE DATE</div>
-          <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{...S.input,colorScheme:'dark'}}/>
+          <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{...S.input}}/>
         </div>
         <div style={{display:'flex',gap:'8px'}}>
           <button onClick={onClose} style={{...S.btnGhost,flex:1}}>Cancel</button>
@@ -288,8 +288,9 @@ function TaskDetailsModal({ task, rooms, users, onSave, onClose }) {
 }
 
 // ── Material Row ──────────────────────────────────────────────────
-function MaterialRow({ mat, canWrite, canDelete, onAdvance, onDelete }) {
+function MaterialRow({ mat, canWrite, canDelete, canEditStatusBack, onAdvance, onSetStatus, onDelete }) {
   const [confirming, setConfirming] = useState(false);
+  const [picking, setPicking] = useState(false);
   const status = mat.status || 'needed';
   const cfg = MAT_STATUS[status] || MAT_STATUS.needed;
   const isComplete = status === 'used';
@@ -303,12 +304,44 @@ function MaterialRow({ mat, canWrite, canDelete, onAdvance, onDelete }) {
           {mat.qty&&<span style={{fontSize:'11px',fontFamily:T.mono,color:T.textFaint,marginLeft:'8px'}}>{mat.qty} {mat.unit||''}</span>}
           {mat.acquired_profile&&<div style={{fontSize:'10px',color:T.textFaint,fontFamily:T.mono,marginTop:'1px'}}>→ {mat.acquired_profile.full_name}</div>}
         </div>
-        {canWrite&&!isComplete&&(
-          <button onClick={onAdvance} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-            {cfg.label} →
-          </button>
+
+        {canEditStatusBack ? (
+          // Admins: tap the status pill to set ANY status (forward or backward).
+          <div style={{position:'relative',flexShrink:0}}>
+            <button onClick={()=>setPicking(v=>!v)} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:'4px'}}>
+              {cfg.label} {Ic.chevron(picking)}
+            </button>
+            {picking&&(
+              <>
+                <div style={{position:'fixed',inset:0,zIndex:140}} onClick={()=>setPicking(false)}/>
+                <div style={{position:'absolute',right:0,top:'calc(100% + 5px)',zIndex:150,background:T.popoverBg,border:`1px solid ${T.border}`,borderRadius:T.radius,padding:'5px',minWidth:'130px',boxShadow:T.shadow,display:'flex',flexDirection:'column',gap:'2px'}}>
+                  {['needed','ordered','delivered','used'].map(s=>{
+                    const sc = MAT_STATUS[s];
+                    const active = s===status;
+                    return (
+                      <button key={s} onClick={()=>{ if(s!==status) onSetStatus(s); setPicking(false); }}
+                        style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:active?sc.bg:'none',border:'none',borderRadius:'6px',padding:'8px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:active?'700':'500',color:sc.color,textAlign:'left'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=sc.bg}
+                        onMouseLeave={e=>e.currentTarget.style.background=active?sc.bg:'none'}>
+                        <span style={{width:'8px',height:'8px',borderRadius:'50%',background:sc.color,flexShrink:0}}/> {sc.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          // Everyone else: forward-only advance, exactly as before.
+          <>
+            {canWrite&&!isComplete&&(
+              <button onClick={onAdvance} style={{fontSize:'10px',fontFamily:T.mono,color:cfg.color,background:cfg.bg,border:`1px solid ${cfg.color}40`,borderRadius:'4px',padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                {cfg.label} →
+              </button>
+            )}
+            {isComplete&&<span style={{fontSize:'10px',fontFamily:T.mono,color:T.accent,background:T.accentFade,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>✓ Used</span>}
+          </>
         )}
-        {isComplete&&<span style={{fontSize:'10px',fontFamily:T.mono,color:T.accent,background:T.accentFade,borderRadius:'4px',padding:'3px 8px',flexShrink:0}}>✓ Used</span>}
         {canDelete&&<button onClick={()=>setConfirming(true)} style={{background:'none',border:'none',color:T.textFaint,cursor:'pointer',padding:'2px',display:'flex',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textFaint}><Ic.trash/></button>}
       </div>
     </>
@@ -316,7 +349,7 @@ function MaterialRow({ mat, canWrite, canDelete, onAdvance, onDelete }) {
 }
 
 // ── Subtask Row ───────────────────────────────────────────────────
-function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelete, onAddMaterial, onAdvanceMaterial, onDeleteMaterial }) {
+function SubtaskRow({ subtask, canManage, canWrite, canDelete, canEditStatusBack, onToggle, onDelete, onAddMaterial, onAdvanceMaterial, onSetMaterialStatus, onDeleteMaterial }) {
   const [matOpen, setMatOpen] = useState(false);
   const [addingMat, setAddingMat] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -361,8 +394,9 @@ function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelet
         <div style={{background:T.surface2,borderRadius:'8px',padding:'10px 12px',margin:'4px 0 8px',border:`1px solid ${T.border}`}}>
           <div style={{...S.fieldLabel,marginBottom:'8px'}}>MATERIALS</div>
           {mats.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontStyle:'italic',marginBottom:'8px',fontFamily:T.sans}}>None yet</div>}
-          {mats.map(m=><MaterialRow key={m.id} mat={m} canWrite={canWrite} canDelete={canDelete}
+          {mats.map(m=><MaterialRow key={m.id} mat={m} canWrite={canWrite} canDelete={canDelete} canEditStatusBack={canEditStatusBack}
             onAdvance={()=>onAdvanceMaterial(m.id)}
+            onSetStatus={(status)=>onSetMaterialStatus(m.id,status)}
             onDelete={()=>onDeleteMaterial(m.id)}
           />)}
           {canWrite&&<button onClick={()=>setAddingMat(true)} style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'none',border:`1px dashed ${T.border}`,color:T.textDim,fontSize:'12px',borderRadius:'5px',padding:'5px 10px',cursor:'pointer',fontFamily:T.sans,marginTop:'6px'}}>
@@ -375,9 +409,10 @@ function SubtaskRow({ subtask, canManage, canWrite, canDelete, onToggle, onDelet
 }
 
 // ── Task Card ─────────────────────────────────────────────────────
-function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, canDelete, onUpdate, onDelete, onMove, onAddSubtask, onToggleSubtask, onDeleteSubtask, onAddMaterial, onAdvanceMaterial, onDeleteMaterial }) {
+function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, canDelete, canEditStatusBack, onUpdate, onDelete, onMove, onAddSubtask, onToggleSubtask, onDeleteSubtask, onAddMaterial, onAdvanceMaterial, onSetMaterialStatus, onDeleteMaterial }) {
   const [expanded, setExpanded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showPriority, setShowPriority] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [addingSub, setAddingSub] = useState(false);
   const [newSub, setNewSub] = useState('');
@@ -406,8 +441,32 @@ function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, ca
           <div style={{width:'9px',height:'9px',borderRadius:'50%',flexShrink:0,background:allDone?T.primary:T.border,boxShadow:allDone?`0 0 8px ${T.primaryFade}`:'none',transition:'all 0.3s'}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:'14px',fontWeight:'700',color:allDone?T.textDim:T.text,textDecoration:allDone?'line-through':'none',fontFamily:T.sans,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.name}</div>
-            <div style={{display:'flex',gap:'6px',marginTop:'3px',flexWrap:'wrap',alignItems:'center'}}>
-              {task.priority&&<span style={{fontSize:'9px',fontFamily:T.mono,color:priorityColor,background:`${priorityColor}20`,borderRadius:'3px',padding:'1px 5px',textTransform:'uppercase'}}>{task.priority}</span>}
+            <div style={{display:'flex',gap:'6px',marginTop:'3px',flexWrap:'wrap',alignItems:'center'}} onClick={e=>{if(canManage)e.stopPropagation();}}>
+              {canManage ? (
+                <div style={{position:'relative',display:'inline-flex'}}>
+                  <button onClick={e=>{e.stopPropagation();setShowPriority(v=>!v);}}
+                    style={{fontSize:'9px',fontFamily:T.mono,color:task.priority?priorityColor:T.textDim,background:task.priority?`${priorityColor}20`:T.controlBg,border:`1px solid ${task.priority?`${priorityColor}40`:T.border}`,borderRadius:'3px',padding:'1px 6px',textTransform:'uppercase',cursor:'pointer',letterSpacing:'0.04em'}}>
+                    {task.priority || 'set priority'}
+                  </button>
+                  {showPriority&&(
+                    <>
+                      <div style={{position:'fixed',inset:0,zIndex:140}} onClick={e=>{e.stopPropagation();setShowPriority(false);}}/>
+                      <div style={{position:'absolute',left:0,top:'calc(100% + 5px)',zIndex:150,background:T.popoverBg,border:`1px solid ${T.border}`,borderRadius:T.radius,padding:'5px',minWidth:'120px',boxShadow:T.shadow,display:'flex',flexDirection:'column',gap:'2px'}}>
+                        {[['high',T.red],['medium',T.warn],['low',T.accent]].map(([p,c])=>(
+                          <button key={p} onClick={e=>{e.stopPropagation();onUpdate(task.id,{priority:p});setShowPriority(false);}}
+                            style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:task.priority===p?`${c}18`:'none',border:'none',borderRadius:'6px',padding:'8px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,fontWeight:task.priority===p?'700':'500',color:c,textAlign:'left',textTransform:'capitalize'}}
+                            onMouseEnter={e=>e.currentTarget.style.background=`${c}18`}
+                            onMouseLeave={e=>e.currentTarget.style.background=task.priority===p?`${c}18`:'none'}>
+                            <span style={{width:'8px',height:'8px',borderRadius:'50%',background:c,flexShrink:0}}/> {p}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                task.priority&&<span style={{fontSize:'9px',fontFamily:T.mono,color:priorityColor,background:`${priorityColor}20`,borderRadius:'3px',padding:'1px 5px',textTransform:'uppercase'}}>{task.priority}</span>
+              )}
               {task.assigned_profile&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.person/> {task.assigned_profile.full_name}</span>}
               {task.due_date&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.cal/> {task.due_date}</span>}
               {task.notes&&<span style={{fontSize:'10px',color:T.textDim,fontFamily:T.mono,display:'flex',alignItems:'center',gap:'2px'}}><Ic.note/> note</span>}
@@ -425,11 +484,12 @@ function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, ca
           <div style={{padding:'14px 16px'}}>
             {task.notes&&<div style={{background:T.surface2,border:`1px solid ${T.border}`,borderRadius:'7px',padding:'10px 12px',marginBottom:'12px',fontSize:'12px',color:T.textMid,fontFamily:T.sans,lineHeight:'1.6'}}>{task.notes}</div>}
             {subs.length===0&&<div style={{fontSize:'12px',color:T.textFaint,fontFamily:T.sans,marginBottom:'10px',fontStyle:'italic'}}>No subtasks yet</div>}
-            {subs.map(sub=><SubtaskRow key={sub.id} subtask={sub} canManage={canManage} canWrite={canWrite} canDelete={canDelete}
+            {subs.map(sub=><SubtaskRow key={sub.id} subtask={sub} canManage={canManage} canWrite={canWrite} canDelete={canDelete} canEditStatusBack={canEditStatusBack}
               onToggle={(completed,note)=>onToggleSubtask(sub.id,completed,note)}
               onDelete={()=>onDeleteSubtask(sub.id)}
               onAddMaterial={onAddMaterial}
               onAdvanceMaterial={onAdvanceMaterial}
+              onSetMaterialStatus={onSetMaterialStatus}
               onDeleteMaterial={onDeleteMaterial}
             />)}
             {canManage&&<div style={{marginTop:'12px'}}>
@@ -454,8 +514,8 @@ function TaskCard({ task, rooms, users, isFirst, isLast, canManage, canWrite, ca
 
 // ── Tasks Tab ─────────────────────────────────────────────────────
 function TasksTab({ property }) {
-  const { canManage, canDelete, isAdmin, isTechnician } = useAuth();
-  const { tasks, loading, addTask, updateTask, deleteTask, moveTask, addSubtask, updateSubtask, deleteSubtask, addMaterial, advanceMaterialStatus, deleteMaterial } = useTasks(property.id);
+  const { canManage, canDelete, isAdmin, isTechnician, can } = useAuth();
+  const { tasks, loading, addTask, updateTask, deleteTask, moveTask, addSubtask, updateSubtask, deleteSubtask, addMaterial, advanceMaterialStatus, setMaterialStatus, deleteMaterial } = useTasks(property.id);
   const { rooms } = useRooms(property.id);
   const { users } = useUsers();
   const [newTask, setNewTask] = useState('');
@@ -466,6 +526,7 @@ function TasksTab({ property }) {
   const completedCount = tasks.filter(isComplete).length;
 
   const canWrite = canManage || isAdmin || isTechnician;
+  const canEditStatusBack = can('edit_status_backward');
 
   const handleToggleSubtask = (sid, completed, note) => {
     updateSubtask(sid, { completed, completion_note: note || null });
@@ -483,7 +544,7 @@ function TasksTab({ property }) {
         </div>
       )}
       <div style={{display:'flex',gap:'6px',marginBottom:'16px',alignItems:'center'}}>
-        {['active','all','completed'].map(f=><button key={f} onClick={()=>setFilter(f)} style={{background:filter===f?T.primary:'rgba(255,255,255,0.05)',border:'none',color:filter===f?T.text:T.textDim,borderRadius:'5px',padding:'5px 12px',cursor:'pointer',fontSize:'11px',fontWeight:filter===f?'700':'500',fontFamily:T.sans,textTransform:'capitalize'}}>{f}</button>)}
+        {['active','all','completed'].map(f=><button key={f} onClick={()=>setFilter(f)} style={{background:filter===f?T.primary:T.controlBg,border:'none',color:filter===f?T.text:T.textDim,borderRadius:'5px',padding:'5px 12px',cursor:'pointer',fontSize:'11px',fontWeight:filter===f?'700':'500',fontFamily:T.sans,textTransform:'capitalize'}}>{f}</button>)}
         <span style={{marginLeft:'auto',fontSize:'11px',color:T.textDim,fontFamily:T.mono}}>{completedCount}/{tasks.length} done</span>
       </div>
       {filtered.length===0?(
@@ -492,13 +553,14 @@ function TasksTab({ property }) {
         </div>
       ):filtered.map((task,idx)=>(
         <TaskCard key={task.id} task={task} rooms={rooms} users={users} isFirst={idx===0} isLast={idx===filtered.length-1}
-          canManage={canManage||isAdmin} canWrite={canWrite} canDelete={canDelete||isAdmin}
+          canManage={canManage||isAdmin} canWrite={canWrite} canDelete={canDelete||isAdmin} canEditStatusBack={canEditStatusBack}
           onUpdate={updateTask} onDelete={deleteTask} onMove={moveTask}
           onAddSubtask={addSubtask}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={deleteSubtask}
           onAddMaterial={addMaterial}
           onAdvanceMaterial={advanceMaterialStatus}
+          onSetMaterialStatus={setMaterialStatus}
           onDeleteMaterial={deleteMaterial}
         />
       ))}
@@ -518,7 +580,7 @@ function ServiceLogModal({ service, onSave, onClose }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={{...S.card,maxHeight:'90vh'}} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>LOG SERVICE — {service.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-        {fld('DATE COMPLETED',<input type="date" value={form.doneDate} onChange={e=>setForm(p=>({...p,doneDate:e.target.value}))} style={{...S.input,colorScheme:'dark'}}/>)}
+        {fld('DATE COMPLETED',<input type="date" value={form.doneDate} onChange={e=>setForm(p=>({...p,doneDate:e.target.value}))} style={{...S.input}}/>)}
         {fld('COMPANY / SERVICE PROVIDER (optional)',<input value={form.company} onChange={e=>setForm(p=>({...p,company:e.target.value}))} placeholder="e.g. ABC Pool Services" style={S.input}/>)}
         {fld('INVOICE NUMBER (optional)',<input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} placeholder="e.g. INV-2024-001" style={S.input}/>)}
         {fld('INVOICE AMOUNT (optional)',<input value={form.invoiceAmount} onChange={e=>setForm(p=>({...p,invoiceAmount:e.target.value}))} type="number" min="0" step="0.01" placeholder="e.g. 850.00" style={S.input}/>)}
@@ -625,7 +687,7 @@ function ServicesTab({ property }) {
               <input type="checkbox" checked={form.isRecurring} onChange={e=>setForm(p=>({...p,isRecurring:e.target.checked}))} style={{width:'18px',height:'18px',accentColor:T.primary}}/>
               <span style={{fontSize:'13px',color:T.textMid,fontFamily:T.sans}}>Recurring service</span>
             </label>
-            {form.isRecurring&&<select value={form.freqMonths} onChange={e=>setForm(p=>({...p,freqMonths:e.target.value}))} style={{...S.input,appearance:'none',colorScheme:'dark',cursor:'pointer'}}>
+            {form.isRecurring&&<select value={form.freqMonths} onChange={e=>setForm(p=>({...p,freqMonths:e.target.value}))} style={{...S.input,appearance:'none',cursor:'pointer'}}>
               {[['Weekly','0.25'],['Monthly','1'],['Every 3 months','3'],['Every 6 months','6'],['Yearly','12'],['Every 2 years','24'],['Every 3 years','36']].map(([l,v])=><option key={v} value={v}>{l}</option>)}
             </select>}
           </div>
@@ -703,7 +765,7 @@ function ShoppingTab({ property }) {
             <div style={{fontSize:'20px',fontWeight:'700',color:T.text,fontFamily:T.sans}}>{total-used} <span style={{fontSize:'13px',fontWeight:'400',color:T.textDim}}>items pending</span></div>
             <div style={{fontSize:'11px',color:T.textDim,fontFamily:T.mono,marginTop:'2px'}}>{used}/{total} used</div>
           </div>
-          <div style={{width:'70px'}}><div style={{height:'6px',background:'rgba(255,255,255,0.08)',borderRadius:'3px'}}><div style={{height:'100%',background:T.primary,borderRadius:'3px',width:`${total>0?(used/total)*100:0}%`,transition:'width 0.4s'}}/></div></div>
+          <div style={{width:'70px'}}><div style={{height:'6px',background:T.controlBgFaint,borderRadius:'3px'}}><div style={{height:'100%',background:T.primary,borderRadius:'3px',width:`${total>0?(used/total)*100:0}%`,transition:'width 0.4s'}}/></div></div>
         </div>
         {/* Status legend */}
         <div style={{display:'flex',gap:'8px',marginBottom:'12px',flexWrap:'wrap'}}>
@@ -714,7 +776,7 @@ function ShoppingTab({ property }) {
           ))}
         </div>
         <div style={{display:'flex',gap:'8px'}}>
-          <button onClick={()=>setShowAll(!showAll)} style={{flex:1,background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,color:T.textDim,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'11px',fontFamily:T.sans}}>{showAll?'Hide used':'Show all'}</button>
+          <button onClick={()=>setShowAll(!showAll)} style={{flex:1,background:T.controlBgFaint,border:`1px solid ${T.border}`,color:T.textDim,borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'11px',fontFamily:T.sans}}>{showAll?'Hide used':'Show all'}</button>
           <button onClick={handleShare} style={{flex:2,background:T.primary,border:'none',color:T.text,fontWeight:'700',borderRadius:'6px',padding:'8px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans,display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>📤 Share via WhatsApp</button>
         </div>
       </div>
@@ -796,8 +858,8 @@ function RoomsTab({ property }) {
 }
 
 // ── Main PropertyPage ─────────────────────────────────────────────
-export default function PropertyPage({ property, properties, onBack, initialTab }) {
-  const [tab, setTab] = useState(initialTab || 'tasks');
+export default function PropertyPage({ property, properties, onBack }) {
+  const [tab, setTab] = useState('tasks');
   const [panelOpen, setPanelOpen] = useState(false);
   const { tasks } = useTasks(property.id);
   const { services } = useServices(property.id);

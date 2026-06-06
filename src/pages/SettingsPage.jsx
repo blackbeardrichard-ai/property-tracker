@@ -150,7 +150,7 @@ function UsersTab({ properties }) {
                 <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                   {ROLES.map(r => (
                     <button key={r} onClick={() => updateUser(u.id, { role: r })}
-                      style={{ background:u.role===r?(ROLE_COLORS[r]||T.primary):'rgba(255,255,255,0.05)', border:'none', color:u.role===r?'#000':T.textMid, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:u.role===r?'700':'400', textTransform:'capitalize' }}>
+                      style={{ background:u.role===r?(ROLE_COLORS[r]||T.primary):T.controlBg, border:'none', color:u.role===r?'#000':T.textMid, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:u.role===r?'700':'400', textTransform:'capitalize' }}>
                       {r}
                     </button>
                   ))}
@@ -205,7 +205,7 @@ function PropertyAccessRow({ property, userId }) {
       <span style={{ flex:1, fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{property.name}</span>
       {hasAccess ? (
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <select value={assignment.role} onChange={e=>updateRole(userId,e.target.value)} style={{ background:'rgba(255,255,255,0.06)', border:`1px solid ${T.border}`, color:T.text, borderRadius:'5px', padding:'4px 8px', fontSize:'11px', fontFamily:T.mono, cursor:'pointer', colorScheme:'dark' }}>
+          <select value={assignment.role} onChange={e=>updateRole(userId,e.target.value)} style={{ background:T.controlBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:'5px', padding:'4px 8px', fontSize:'11px', fontFamily:T.mono, cursor:'pointer' }}>
             {['manager','technician','viewer'].map(r=><option key={r} value={r}>{r}</option>)}
           </select>
           <button onClick={()=>removeUser(userId)} style={{ background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'5px', padding:'4px 8px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}
@@ -247,9 +247,9 @@ function AuditTab({ properties }) {
   return (
     <div>
       <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-        <button onClick={()=>setFilter('all')} style={{ background:filter==='all'?T.primary:'rgba(255,255,255,0.05)', border:'none', color:filter==='all'?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter==='all'?'700':'400' }}>All Properties</button>
+        <button onClick={()=>setFilter('all')} style={{ background:filter==='all'?T.primary:T.controlBg, border:'none', color:filter==='all'?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter==='all'?'700':'400' }}>All Properties</button>
         {properties.map(p=>(
-          <button key={p.id} onClick={()=>setFilter(p.id)} style={{ background:filter===p.id?T.primary:'rgba(255,255,255,0.05)', border:'none', color:filter===p.id?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter===p.id?'700':'400' }}>
+          <button key={p.id} onClick={()=>setFilter(p.id)} style={{ background:filter===p.id?T.primary:T.controlBg, border:'none', color:filter===p.id?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter===p.id?'700':'400' }}>
             {p.icon} {p.name}
           </button>
         ))}
@@ -336,7 +336,7 @@ export default function SettingsPage({ onBack, properties }) {
           <div style={{ width:'1px', height:'16px', background:T.border }}/>
           <div style={{ fontSize:'15px', fontWeight:'700', color:T.text }}>Settings</div>
         </div>
-        <div style={{ display:'flex', borderTop:'1px solid rgba(255,255,255,0.05)', overflowX:'auto' }}>
+        <div style={{ display:'flex', borderTop:`1px solid ${T.border}`, overflowX:'auto' }}>
           {TABS.map(t => (
             <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:'5px', padding:'11px 8px', background:'none', border:'none', cursor:'pointer', borderBottom:tab===t.id?`2px solid ${T.primary}`:'2px solid transparent', color:tab===t.id?T.accent:T.textDim, fontSize:'12px', fontWeight:tab===t.id?'700':'500', fontFamily:T.sans, transition:'all 0.15s', whiteSpace:'nowrap' }}>
               {t.icon} {t.label}

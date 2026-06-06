@@ -12,6 +12,9 @@ export const T = {
   surface:       '#FFFFFF',
   surface2:      '#EBEBEB',
   surfaceCard:   '#FFFFFF',
+  controlBg:     '#EFEFEF',   // unselected buttons / filter chips / control fills
+  controlBgFaint:'#F5F5F5',   // very subtle fills (progress tracks, etc.)
+  popoverBg:     '#FFFFFF',   // dropdown / popover menu background
 
   // Borders
   border:        '#DEDEDE',
@@ -81,9 +84,9 @@ export const S = {
   },
   overlay: {
     position:'fixed', inset:0, zIndex:200,
-    background:'rgba(0,0,0,0.35)',
+    background:'rgba(0,0,0,0.4)',
     display:'flex', alignItems:'center', justifyContent:'center',
-    backdropFilter:'blur(4px)', padding:'16px',
+    padding:'16px',
   },
   card: {
     background:'#FFFFFF',

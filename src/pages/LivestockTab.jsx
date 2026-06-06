@@ -34,7 +34,7 @@ function DotsMenu({ items }) {
       {open && (
         <>
           <div style={{ position:'fixed', inset:0, zIndex:140 }} onClick={()=>setOpen(false)}/>
-          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:'#1e2b27', border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
+          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:T.popoverBg, border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
             {items.map((item,i) => item==='divider'
               ? <div key={i} style={{ height:'1px', background:T.border, margin:'4px 0' }}/>
               : <button key={i} onClick={()=>{item.action();setOpen(false);}} style={{ display:'flex', alignItems:'center', gap:'9px', width:'100%', background:'none', border:'none', color:item.danger?T.red:T.textMid, padding:'10px 13px', borderRadius:'7px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans, textAlign:'left' }}
@@ -66,7 +66,7 @@ function AddAnimalModal({ animals, onSave, onClose }) {
       <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>ADD ANIMAL</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
 
-        {fld('SPECIES', <select value={form.species} onChange={f('species')} style={{ ...S.input, appearance:'none', colorScheme:'dark', cursor:'pointer' }}>
+        {fld('SPECIES', <select value={form.species} onChange={f('species')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
           {SPECIES.map(s=><option key={s} value={s}>{s}</option>)}
         </select>)}
 
@@ -79,7 +79,7 @@ function AddAnimalModal({ animals, onSave, onClose }) {
           <div>
             {fld('GENDER', <div style={{ display:'flex', gap:'6px' }}>
               {['male','female','unknown'].map(g=>(
-                <button key={g} onClick={()=>setForm(p=>({...p,gender:g}))} style={{ flex:1, background:form.gender===g?T.primary:'rgba(255,255,255,0.05)', border:'none', color:form.gender===g?T.text:T.textMid, borderRadius:'5px', padding:'7px 4px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{g}</button>
+                <button key={g} onClick={()=>setForm(p=>({...p,gender:g}))} style={{ flex:1, background:form.gender===g?T.primary:T.controlBg, border:'none', color:form.gender===g?T.text:T.textMid, borderRadius:'5px', padding:'7px 4px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{g}</button>
               ))}
             </div>)}
           </div>
@@ -87,15 +87,15 @@ function AddAnimalModal({ animals, onSave, onClose }) {
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('DATE OF BIRTH', <input type="date" value={form.dob} onChange={f('dob')} style={{ ...S.input, colorScheme:'dark' }}/>)}</div>
-          <div>{fld('MOTHER (optional)', <select value={form.mother_id} onChange={f('mother_id')} style={{ ...S.input, appearance:'none', colorScheme:'dark', cursor:'pointer' }}>
+          <div>{fld('DATE OF BIRTH', <input type="date" value={form.dob} onChange={f('dob')} style={{ ...S.input }}/>)}</div>
+          <div>{fld('MOTHER (optional)', <select value={form.mother_id} onChange={f('mother_id')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
             <option value="">— None —</option>
             {females.map(a=><option key={a.id} value={a.id}>{a.tag_number||a.name}</option>)}
           </select>)}</div>
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('PURCHASE DATE', <input type="date" value={form.purchase_date} onChange={f('purchase_date')} style={{ ...S.input, colorScheme:'dark' }}/>)}</div>
+          <div>{fld('PURCHASE DATE', <input type="date" value={form.purchase_date} onChange={f('purchase_date')} style={{ ...S.input }}/>)}</div>
           <div>{fld('PURCHASE PRICE (R)', <input type="number" value={form.purchase_price} onChange={f('purchase_price')} min="0" step="0.01" placeholder="e.g. 8500" style={S.input}/>)}</div>
         </div>
 
@@ -127,13 +127,13 @@ function AddEventModal({ animal, onSave, onClose }) {
 
         {fld('EVENT TYPE', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
           {EVENT_TYPES.map(et=>(
-            <button key={et.value} onClick={()=>setForm(p=>({...p,eventType:et.value}))} style={{ background:form.eventType===et.value?`${et.color}25`:'rgba(255,255,255,0.05)', border:`1px solid ${form.eventType===et.value?et.color:T.border}`, color:form.eventType===et.value?et.color:T.textMid, borderRadius:'6px', padding:'6px 10px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
+            <button key={et.value} onClick={()=>setForm(p=>({...p,eventType:et.value}))} style={{ background:form.eventType===et.value?`${et.color}25`:T.controlBg, border:`1px solid ${form.eventType===et.value?et.color:T.border}`, color:form.eventType===et.value?et.color:T.textMid, borderRadius:'6px', padding:'6px 10px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
               {et.icon} {et.label}
             </button>
           ))}
         </div>)}
 
-        {fld('DATE', <input type="date" value={form.eventDate} onChange={f('eventDate')} style={{ ...S.input, colorScheme:'dark' }}/>)}
+        {fld('DATE', <input type="date" value={form.eventDate} onChange={f('eventDate')} style={{ ...S.input }}/>)}
         {fld('DESCRIPTION', <textarea value={form.description} onChange={f('description')} rows={2} placeholder={
           form.eventType==='death'?'Cause of death, circumstances…':
           form.eventType==='treatment'?'Treatment given, medication, dosage…':
@@ -320,13 +320,13 @@ export default function LivestockTab({ property }) {
       {/* Filters */}
       <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
         {['alive','deceased','sold','all'].map(s=>(
-          <button key={s} onClick={()=>setStatusFilter(s)} style={{ background:statusFilter===s?T.primary:'rgba(255,255,255,0.05)', border:'none', color:statusFilter===s?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:statusFilter===s?'700':'400' }}>{s}</button>
+          <button key={s} onClick={()=>setStatusFilter(s)} style={{ background:statusFilter===s?T.primary:T.controlBg, border:'none', color:statusFilter===s?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:statusFilter===s?'700':'400' }}>{s}</button>
         ))}
       </div>
       {species.length > 2 && (
         <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
           {species.map(s=>(
-            <button key={s} onClick={()=>setSpeciesFilter(s)} style={{ background:speciesFilter===s?T.primaryFade:'rgba(255,255,255,0.03)', border:`1px solid ${speciesFilter===s?T.primaryBorder:T.border}`, color:speciesFilter===s?T.accent:T.textDim, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{s}</button>
+            <button key={s} onClick={()=>setSpeciesFilter(s)} style={{ background:speciesFilter===s?T.primaryFade:T.controlBgFaint, border:`1px solid ${speciesFilter===s?T.primaryBorder:T.border}`, color:speciesFilter===s?T.accent:T.textDim, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{s}</button>
           ))}
         </div>
       )}

@@ -167,6 +167,26 @@ export function useTasks(propertyId) {
     await updateMaterial(materialId, { status: nextStatus });
   };
 
+  // Set a material to any status directly (forward or backward). Used by the
+  // admin status picker. When moving back to 'needed', clear the acquired_*
+  // fields so the record doesn't keep a stale "acquired by" trail.
+  const setMaterialStatus = async (materialId, status) => {
+    if (!MATERIAL_STATUSES.includes(status)) return;
+    if (status === 'needed') {
+      // updateMaterial only sets acquired_* when status !== 'needed', so clear here.
+      setTasks(prev => prev.map(t => ({
+        ...t, subtasks: (t.subtasks||[]).map(s => ({
+          ...s, materials: (s.materials||[]).map(m => m.id !== materialId ? m : { ...m, status, acquired_by:null, acquired_at:null, acquired_profile:null })
+        }))
+      })));
+      await supabase.from('materials').update({ status, acquired_by:null, acquired_at:null }).eq('id', materialId);
+      const mat = tasksRef.current.flatMap(t => t.subtasks||[]).flatMap(s => s.materials||[]).find(m => m.id === materialId);
+      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'needed', entityType: 'material', entityId: materialId, entityName: mat?.name });
+      return;
+    }
+    await updateMaterial(materialId, { status });
+  };
+
   const deleteMaterial = async (materialId) => {
     setTasks(prev => prev.map(t => ({
       ...t, subtasks: (t.subtasks||[]).map(s => ({
@@ -180,7 +200,7 @@ export function useTasks(propertyId) {
     tasks, loading, fetchTasks,
     addTask, updateTask, deleteTask, moveTask,
     addSubtask, updateSubtask, deleteSubtask,
-    addMaterial, updateMaterial, deleteMaterial, advanceMaterialStatus,
+    addMaterial, updateMaterial, deleteMaterial, advanceMaterialStatus, setMaterialStatus,
     MATERIAL_STATUSES,
   };
 }

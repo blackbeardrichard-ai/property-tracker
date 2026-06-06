@@ -154,11 +154,24 @@ function UnitPicker({ value, onChange }) {
   const filtered = filterUnits(search);
   return (
     <div>
-      {value&&<div style={{display:'flex',gap:'8px',marginBottom:'8px'}}><div style={{flex:1,background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'6px',padding:'7px 12px',fontSize:'13px',color:T.accent,fontWeight:'700'}}>✓ {value}</div><button onClick={()=>{onChange('');setSearch('');}} style={{background:'none',border:`1px solid ${T.borderLight}`,color:T.textDim,borderRadius:'6px',padding:'7px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans}}>Change</button></div>}
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search units…" style={{...S.input,marginBottom:'8px'}}/>
-      {(!value||search)&&<div style={{maxHeight:'180px',overflowY:'auto',borderRadius:'7px',border:`1px solid ${T.border}`,background:'rgba(0,0,0,0.25)'}}>
-        {filtered.map(u=><button key={u} onMouseDown={e=>{e.preventDefault();onChange(u);setSearch('');}} style={{display:'flex',width:'100%',background:value===u?T.primaryFade:'transparent',border:'none',borderBottom:`1px solid ${T.border}`,color:value===u?T.accent:'rgba(240,237,232,0.85)',padding:'12px 14px',cursor:'pointer',fontSize:'14px',fontFamily:T.sans,minHeight:'48px',alignItems:'center'}}>{u}</button>)}
-      </div>}
+      {value && (
+        <div style={{display:'flex',gap:'8px',marginBottom:'8px'}}>
+          <div style={{flex:1,background:T.primaryFade,border:`1px solid ${T.primaryBorder}`,borderRadius:'6px',padding:'7px 12px',fontSize:'13px',color:T.primary,fontWeight:'700'}}>✓ {value}</div>
+          <button onClick={()=>{onChange('');setSearch('');}} style={{background:'none',border:`1px solid ${T.border}`,color:T.textMid,borderRadius:'6px',padding:'7px 10px',cursor:'pointer',fontSize:'12px',fontFamily:T.sans}}>Change</button>
+        </div>
+      )}
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search units — m², m³, kg, bag…" style={{...S.input,marginBottom:'8px'}}/>
+      {(!value||search) && (
+        <div style={{maxHeight:'200px',overflowY:'auto',borderRadius:'8px',border:`1px solid ${T.border}`,background:'#FFFFFF',boxShadow:T.shadow}}>
+          {filtered.length===0 && <div style={{padding:'14px',fontSize:'13px',color:T.textDim,fontFamily:T.sans,textAlign:'center'}}>No match</div>}
+          {filtered.map(u=>(
+            <button key={u.label} onMouseDown={e=>{e.preventDefault();onChange(u.label);setSearch('');}}
+              style={{display:'flex',alignItems:'center',width:'100%',background:value===u.label?T.primaryFade:'#FFFFFF',border:'none',borderBottom:`1px solid ${T.border}`,color:value===u.label?T.primary:'#1A1A1A',padding:'13px 14px',cursor:'pointer',fontSize:'14px',fontFamily:T.sans,fontWeight:value===u.label?'700':'400',minHeight:'48px',textAlign:'left'}}>
+              {u.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -678,7 +691,7 @@ function ShoppingTab({ property }) {
         <div style={S.overlay} onClick={()=>setShareModal(false)}>
           <div style={{...S.card,maxHeight:'80vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
             <div style={S.mHead}><span style={S.mLabel}>SHARE LIST</span><button onClick={()=>setShareModal(false)} style={S.closeBtn}>×</button></div>
-            <textarea readOnly value={shareText()} style={{flex:1,background:'rgba(0,0,0,0.2)',border:`1px solid ${T.border}`,borderRadius:'8px',color:'rgba(240,237,232,0.85)',padding:'12px',fontSize:'13px',fontFamily:T.mono,resize:'none',outline:'none',minHeight:'200px',WebkitUserSelect:'text',userSelect:'text'}} onFocus={e=>e.target.select()}/>
+            <textarea readOnly value={shareText()} style={{flex:1,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:'8px',color:'rgba(240,237,232,0.85)',padding:'12px',fontSize:'13px',fontFamily:T.mono,resize:'none',outline:'none',minHeight:'200px',WebkitUserSelect:'text',userSelect:'text'}} onFocus={e=>e.target.select()}/>
             <button onClick={()=>setShareModal(false)} style={{...S.btnGhost,marginTop:'10px'}}>Close</button>
           </div>
         </div>
@@ -848,7 +861,7 @@ export default function PropertyPage({ property, properties, onBack }) {
       {/* Slide-in side panel for secondary tabs */}
       {panelOpen&&(
         <>
-          <div style={{position:'fixed',inset:0,zIndex:90,background:'rgba(0,0,0,0.25)'}} onClick={()=>setPanelOpen(false)}/>
+          <div style={{position:'fixed',inset:0,zIndex:90,background:T.surface}} onClick={()=>setPanelOpen(false)}/>
           <div style={{position:'fixed',top:0,right:0,bottom:0,zIndex:100,width:'280px',background:T.surface,boxShadow:'-4px 0 24px rgba(0,0,0,0.15)',display:'flex',flexDirection:'column',animation:'slideIn 0.2s ease'}}>
             <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
             <div style={{padding:'20px 20px 12px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>

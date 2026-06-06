@@ -28,6 +28,7 @@ function Inner() {
   if (view === 'property' && activeProperty) return (
     <PropertyPage
       property={activeProperty}
+      properties={properties}
       onBack={() => { setActiveProperty(null); setView('properties'); }}
     />
   );

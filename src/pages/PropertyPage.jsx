@@ -4,6 +4,7 @@ import { useTasks } from '../hooks/useTasks';
 import { useServices } from '../hooks/useServices';
 import { useRooms } from '../hooks/useRooms';
 import { T, S } from '../lib/theme';
+import AssetsTab from './AssetsTab';
 
 // ── Icons ────────────────────────────────────────────────────────
 const Ic = {
@@ -646,7 +647,7 @@ function RoomsTab({ property }) {
 }
 
 // ── Main PropertyPage ─────────────────────────────────────────────
-export default function PropertyPage({ property, onBack }) {
+export default function PropertyPage({ property, properties, onBack, onEditProperty }) {
   const [tab, setTab] = useState('tasks');
   const { tasks } = useTasks(property.id);
   const { services } = useServices(property.id);
@@ -654,11 +655,13 @@ export default function PropertyPage({ property, onBack }) {
   const pendingMats = tasks.flatMap(t=>(t.subtasks||[]).flatMap(s=>(s.materials||[]))).filter(m=>m.status!=='acquired'&&!m.acquired_at).length;
   const overdueSvcs = services.filter(s=>daysUntil(s.next_due)!==null&&daysUntil(s.next_due)<0).length;
 
+  const isCommercial = property.type === 'commercial';
   const TABS = [
     {id:'tasks',    label:'Tasks',    icon:<Ic.tool/>},
     {id:'services', label:'Services', icon:<Ic.wrench/>},
     {id:'shopping', label:'Shopping', icon:<Ic.cart/>},
     {id:'rooms',    label:'Rooms',    icon:<Ic.home/>},
+    ...(isCommercial ? [{id:'assets', label:'Assets', icon:<Ic.wrench/>}] : []),
   ];
 
   return (
@@ -694,6 +697,7 @@ export default function PropertyPage({ property, onBack }) {
         {tab==='services'&&<ServicesTab property={property}/>}
         {tab==='shopping'&&<ShoppingTab property={property}/>}
         {tab==='rooms'&&<RoomsTab property={property}/>}
+        {tab==='assets'&&<AssetsTab property={property} properties={properties||[]}/>}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../hooks/useTasks';
 import { useServices } from '../hooks/useServices';
@@ -55,7 +56,7 @@ function Toast({ message, onDismiss }) {
 
 // ── Shared small components ───────────────────────────────────────
 function ConfirmDelete({ label, onConfirm, onClose }) {
-  return (
+  return createPortal(
     <div style={S.overlay} onClick={onClose}>
       <div style={{...S.card,maxWidth:'300px',textAlign:'center'}} onClick={e=>e.stopPropagation()}>
         <button onClick={onClose} style={{...S.closeBtn,display:'block',marginLeft:'auto',marginBottom:'4px'}}>×</button>
@@ -67,7 +68,8 @@ function ConfirmDelete({ label, onConfirm, onClose }) {
           <button onClick={()=>{onConfirm();onClose();}} style={{flex:2,background:T.red,border:'none',color:'#fff',fontWeight:'700',borderRadius:'8px',padding:'11px',cursor:'pointer',fontSize:'13px',fontFamily:T.sans}}>Delete</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -173,7 +175,7 @@ function MaterialModal({ onSave, onClose }) {
     onSave({ name:name.trim(), qty:qty||null, unit });
     onClose();
   };
-  return (
+  return createPortal(
     <div style={S.overlay} onClick={onClose}>
       <div style={S.card} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>ADD MATERIAL</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
@@ -194,14 +196,15 @@ function MaterialModal({ onSave, onClose }) {
           <button onClick={submit} style={{...S.btnPrimary,flex:2}}>Add Material</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // ── Completion Modal (subtask tick with note) ─────────────────────
 function CompletionModal({ subtask, onSave, onClose }) {
   const [note, setNote] = useState('');
-  return (
+  return createPortal(
     <div style={S.overlay} onClick={onClose}>
       <div style={{...S.card,maxWidth:'380px'}} onClick={e=>e.stopPropagation()}>
         <div style={S.mHead}><span style={S.mLabel}>MARK COMPLETE</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
@@ -215,7 +218,8 @@ function CompletionModal({ subtask, onSave, onClose }) {
           <button onClick={()=>{onSave(note);onClose();}} style={{...S.btnPrimary,flex:2}}>Mark Complete</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -5,6 +5,7 @@ import { useServices } from '../hooks/useServices';
 import { useRooms } from '../hooks/useRooms';
 import { T, S } from '../lib/theme';
 import AssetsTab from './AssetsTab';
+import LivestockTab from './LivestockTab';
 
 // ── Icons ────────────────────────────────────────────────────────
 const Ic = {
@@ -661,7 +662,10 @@ export default function PropertyPage({ property, properties, onBack, onEditPrope
     {id:'services', label:'Services', icon:<Ic.wrench/>},
     {id:'shopping', label:'Shopping', icon:<Ic.cart/>},
     {id:'rooms',    label:'Rooms',    icon:<Ic.home/>},
-    ...(isCommercial ? [{id:'assets', label:'Assets', icon:<Ic.wrench/>}] : []),
+    ...(isCommercial ? [
+      {id:'assets',    label:'Assets',    icon:<Ic.wrench/>},
+      {id:'livestock', label:'Livestock', icon:<Ic.wrench/>},
+    ] : []),
   ];
 
   return (
@@ -698,6 +702,7 @@ export default function PropertyPage({ property, properties, onBack, onEditPrope
         {tab==='shopping'&&<ShoppingTab property={property}/>}
         {tab==='rooms'&&<RoomsTab property={property}/>}
         {tab==='assets'&&<AssetsTab property={property} properties={properties||[]}/>}
+        {tab==='livestock'&&<LivestockTab property={property}/>}
       </div>
     </div>
   );

@@ -4,11 +4,12 @@ import LoginPage from './pages/LoginPage';
 import PropertySelectorPage from './pages/PropertySelectorPage';
 import PropertyPage from './pages/PropertyPage';
 import SettingsPage from './pages/SettingsPage';
+import ForcePasswordChange from './pages/ForcePasswordChange';
 import { useProperties } from './hooks/useProperties';
 import { T } from './lib/theme';
 
 function Inner() {
-  const { user, loading } = useAuth();
+  const { user, loading, mustChangePassword } = useAuth();
   const { properties } = useProperties();
   const [view, setView] = useState('properties'); // properties | property | settings
   const [activeProperty, setActiveProperty] = useState(null);
@@ -21,6 +22,9 @@ function Inner() {
   );
 
   if (!user) return <LoginPage />;
+
+  // First-login / invited users must set their own password before anything else.
+  if (mustChangePassword) return <ForcePasswordChange />;
 
   if (view === 'settings') return (
     <SettingsPage properties={properties} onBack={() => setView('properties')} />

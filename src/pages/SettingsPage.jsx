@@ -117,22 +117,45 @@ function ProfileTab() {
 }
 
 // ── Users Tab ─────────────────────────────────────────────────────
+// Capabilities an admin can override per-user (label + the key used by can()).
+const OVERRIDABLE_CAPABILITIES = [
+  { key:'edit_status_backward', label:'Edit material status backward', hint:'Change a material to any status, including reversing “Used”.' },
+  { key:'edit_priority',        label:'Edit task priority',            hint:'Set high / medium / low on tasks.' },
+  { key:'view_asset_register',  label:'View global asset register',    hint:'See assets across all properties (coming soon).' },
+];
+const ROLE_DEFAULT_CAPS = {
+  edit_status_backward: ['admin'],
+  edit_priority:        ['admin','manager'],
+  view_asset_register:  ['admin'],
+};
+
 function UsersTab({ properties }) {
-  const { users, loading, updateUser, deactivateUser } = useUsers();
+  const { users, loading, updateUser, deactivateUser, inviteUser, updateUserPermission, getUserPermissions } = useUsers();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ email:'', fullName:'', role:'viewer' });
+  const [form, setForm] = useState({ email:'', fullName:'', role:'viewer', defaultPassword:'', assignments:{} });
   const [inviteMsg, setInviteMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const [expandedUser, setExpandedUser] = useState(null);
 
   const handleInvite = async () => {
     if (!form.email.trim() || !form.fullName.trim()) { setInviteMsg('Email and name are required.'); return; }
-    setSaving(true);
-    // Create user via SQL since admin API requires service key
-    // Instead we'll show instructions
-    setInviteMsg('To add a user: go to Supabase → Authentication → Users → Add user, then assign them here.');
+    if (form.defaultPassword.length < 6) { setInviteMsg('Default password must be at least 6 characters.'); return; }
+    setSaving(true); setInviteMsg('');
+    const assignments = Object.entries(form.assignments)
+      .filter(([,role]) => role)
+      .map(([property_id, role]) => ({ property_id, role }));
+    const { error } = await inviteUser({
+      email: form.email.trim(),
+      fullName: form.fullName.trim(),
+      role: form.role,
+      defaultPassword: form.defaultPassword,
+      assignments,
+    });
+    if (error) { setInviteMsg('Error: ' + error.message); setSaving(false); return; }
+    setInviteMsg('✓ User created. They’ll get an activation email and must set a new password on first login.');
+    setForm({ email:'', fullName:'', role:'viewer', defaultPassword:'', assignments:{} });
     setSaving(false);
-    setTimeout(() => setInviteMsg(''), 8000);
+    setTimeout(() => { setInviteMsg(''); setAdding(false); }, 5000);
   };
 
   const activeUsers = users.filter(u => u.active !== false);
@@ -161,7 +184,7 @@ function UsersTab({ properties }) {
           {expandedUser === u.id && (
             <div style={{ padding:'0 16px 14px', borderTop:`1px solid ${T.border}`, paddingTop:'12px' }}>
               <div style={{ marginBottom:'12px' }}>
-                <div style={S.fieldLabel}>ROLE</div>
+                <div style={S.fieldLabel}>GLOBAL ROLE</div>
                 <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                   {ROLES.map(r => (
                     <button key={r} onClick={() => updateUser(u.id, { role: r })}
@@ -173,14 +196,18 @@ function UsersTab({ properties }) {
               </div>
 
               <div style={{ marginBottom:'12px' }}>
-                <div style={S.fieldLabel}>PROPERTY ACCESS</div>
+                <div style={S.fieldLabel}>PROPERTY ACCESS &amp; ROLE</div>
                 {properties.map(prop => (
                   <PropertyAccessRow key={prop.id} property={prop} userId={u.id}/>
                 ))}
               </div>
 
+              {u.role !== 'admin' && (
+                <CapabilityToggles user={u} getUserPermissions={getUserPermissions} updateUserPermission={updateUserPermission}/>
+              )}
+
               <button onClick={() => deactivateUser(u.id)}
-                style={{ display:'inline-flex', alignItems:'center', gap:'6px', background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}
+                style={{ display:'inline-flex', alignItems:'center', gap:'6px', background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans, marginTop:'4px' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor=T.red}
                 onMouseLeave={e => e.currentTarget.style.borderColor=T.border}
               >
@@ -191,22 +218,137 @@ function UsersTab({ properties }) {
         </div>
       ))}
 
-      {/* Add user info */}
-      <div style={{ background:T.primaryFade, border:`1px dashed ${T.primary}`, borderRadius:'10px', padding:'16px', marginTop:'12px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'8px' }}>ADD NEW USER</div>
-        <div style={{ fontSize:'13px', color:T.textMid, fontFamily:T.sans, lineHeight:'1.6' }}>
-          To add a new user:
-          <ol style={{ marginTop:'8px', paddingLeft:'18px', display:'flex', flexDirection:'column', gap:'4px' }}>
-            <li>Go to <strong style={{color:T.accent}}>supabase.com</strong> → your project → Authentication → Users</li>
-            <li>Click <strong style={{color:T.accent}}>Add user</strong> → Create new user</li>
-            <li>Enter their email and a temporary password</li>
-            <li>Come back here and assign their role and property access</li>
-          </ol>
+      {/* Invite new user */}
+      {!adding ? (
+        <button onClick={()=>setAdding(true)} style={{ display:'flex', alignItems:'center', gap:'8px', width:'100%', justifyContent:'center', background:'none', border:`2px dashed ${T.primaryBorder}`, color:T.accent, borderRadius:'10px', padding:'14px', cursor:'pointer', fontSize:'14px', fontFamily:T.sans, fontWeight:'600', marginTop:'12px' }}
+          onMouseEnter={e=>e.currentTarget.style.background=T.primaryFade} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+          <Ic.plus/> Invite New User
+        </button>
+      ) : (
+        <div style={{ background:T.surface2, border:`1px solid ${T.primaryBorder}`, borderRadius:'10px', padding:'18px', marginTop:'12px' }}>
+          <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'14px' }}>INVITE NEW USER</div>
+
+          <div style={{ marginBottom:'12px' }}>
+            <div style={S.fieldLabel}>FULL NAME *</div>
+            <input value={form.fullName} onChange={e=>setForm(p=>({...p,fullName:e.target.value}))} placeholder="e.g. Jane Smith" style={S.input}/>
+          </div>
+          <div style={{ marginBottom:'12px' }}>
+            <div style={S.fieldLabel}>EMAIL *</div>
+            <input value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="jane@example.com" style={S.input}/>
+          </div>
+          <div style={{ marginBottom:'12px' }}>
+            <div style={S.fieldLabel}>TEMPORARY PASSWORD *</div>
+            <input value={form.defaultPassword} onChange={e=>setForm(p=>({...p,defaultPassword:e.target.value}))} placeholder="Min. 6 chars — they’ll reset on first login" style={S.input}/>
+          </div>
+
+          <div style={{ marginBottom:'12px' }}>
+            <div style={S.fieldLabel}>GLOBAL ROLE</div>
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+              {ROLES.map(r => (
+                <button key={r} onClick={()=>setForm(p=>({...p,role:r}))}
+                  style={{ background:form.role===r?(ROLE_COLORS[r]||T.primary):T.controlBg, border:'none', color:form.role===r?'#000':T.textMid, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:form.role===r?'700':'400', textTransform:'capitalize' }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom:'16px' }}>
+            <div style={S.fieldLabel}>PROPERTY ACCESS (pick a role per property)</div>
+            {properties.map(prop => {
+              const sel = form.assignments[prop.id] || '';
+              return (
+                <div key={prop.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
+                  <span style={{ fontSize:'16px' }}>{prop.icon}</span>
+                  <span style={{ flex:1, fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{prop.name}</span>
+                  <div style={{ display:'flex', gap:'4px' }}>
+                    {['', 'viewer','technician','manager'].map(r => (
+                      <button key={r||'none'} onClick={()=>setForm(p=>({...p,assignments:{...p.assignments,[prop.id]:r}}))}
+                        style={{ background:sel===r?T.primary:T.controlBg, border:'none', color:sel===r?'#fff':T.textDim, borderRadius:'4px', padding:'3px 8px', cursor:'pointer', fontSize:'10px', fontFamily:T.mono, textTransform:'capitalize' }}>
+                        {r||'none'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {inviteMsg && <div style={{ fontSize:'13px', color:inviteMsg.includes('Error')?T.red:T.accent, marginBottom:'12px', fontFamily:T.sans, lineHeight:'1.5' }}>{inviteMsg}</div>}
+
+          <div style={{ display:'flex', gap:'8px' }}>
+            <button onClick={()=>{ setAdding(false); setInviteMsg(''); }} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
+            <button onClick={handleInvite} disabled={saving} style={{ ...S.btnPrimary, flex:2, opacity:saving?0.7:1 }}>
+              {saving ? 'Creating…' : 'Create & Invite'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
+// ── Capability override toggles (inside user expand) ──────────────
+function CapabilityToggles({ user, getUserPermissions, updateUserPermission }) {
+  const [overrides, setOverrides] = useState(null); // { cap: bool }
+
+  useEffect(() => {
+    let active = true;
+    getUserPermissions(user.id).then(map => { if (active) setOverrides(map); });
+    return () => { active = false; };
+  }, [user.id]);
+
+  const roleHasByDefault = (cap) => (ROLE_DEFAULT_CAPS[cap] || []).includes(user.role);
+
+  const cycle = async (cap) => {
+    // Tri-state: default → granted → denied → default
+    const cur = overrides && Object.prototype.hasOwnProperty.call(overrides, cap) ? overrides[cap] : null;
+    let next;
+    if (cur === null) next = true;
+    else if (cur === true) next = false;
+    else next = null;
+    await updateUserPermission(user.id, cap, next);
+    setOverrides(prev => {
+      const copy = { ...(prev||{}) };
+      if (next === null) delete copy[cap]; else copy[cap] = next;
+      return copy;
+    });
+  };
+
+  const stateLabel = (cap) => {
+    const has = overrides && Object.prototype.hasOwnProperty.call(overrides, cap);
+    if (!has) return { text:`Default (${roleHasByDefault(cap)?'on':'off'})`, color:T.textDim, bg:T.controlBg };
+    return overrides[cap]
+      ? { text:'Granted', color:T.accent, bg:T.accentFade }
+      : { text:'Denied',  color:T.red,    bg:T.redFade };
+  };
+
+  return (
+    <div style={{ marginBottom:'12px' }}>
+      <div style={S.fieldLabel}>CAPABILITY OVERRIDES</div>
+      <div style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.sans, marginBottom:'8px', lineHeight:'1.5' }}>
+        Tap to cycle: Default → Granted → Denied. Overrides win over the role default.
+      </div>
+      {overrides === null ? (
+        <div style={{ fontSize:'12px', color:T.textDim, fontFamily:T.mono }}>Loading…</div>
+      ) : OVERRIDABLE_CAPABILITIES.map(c => {
+        const st = stateLabel(c.key);
+        return (
+          <div key={c.key} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{c.label}</div>
+              <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.sans, marginTop:'1px' }}>{c.hint}</div>
+            </div>
+            <button onClick={()=>cycle(c.key)} style={{ flexShrink:0, background:st.bg, border:`1px solid ${st.color}40`, color:st.color, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.mono, whiteSpace:'nowrap' }}>
+              {st.text}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 
 // ── Property Access Row (inside user expand) ──────────────────────
 function PropertyAccessRow({ property, userId }) {

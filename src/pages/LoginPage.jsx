@@ -35,10 +35,8 @@ export default function LoginPage() {
 
         {/* Brand */}
         <div style={{ textAlign:'center', marginBottom:'40px' }}>
-          <div style={{ width:'72px', height:'72px', background:T.primary, borderRadius:'20px', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px', boxShadow:`0 8px 24px ${T.primaryFade}`, fontSize:'34px' }}>
-            🏡
-          </div>
-          <div style={{ fontSize:'26px', fontWeight:'700', color:T.text, letterSpacing:'-0.5px' }}>Property Tracker</div>
+          <img src="/grid-capital-logo.png" alt="Grid Capital" style={{ width:'200px', maxWidth:'70%', height:'auto', margin:'0 auto 20px', display:'block' }}/>
+          <div style={{ fontSize:'22px', fontWeight:'700', color:T.text, letterSpacing:'-0.5px' }}>Property Tracker</div>
           <div style={{ fontSize:'13px', color:T.textDim, fontFamily:T.mono, marginTop:'4px' }}>
             {resetMode ? 'Reset your password' : 'Sign in to your account'}
           </div>

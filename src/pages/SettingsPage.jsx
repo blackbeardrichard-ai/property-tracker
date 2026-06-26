@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUsers, usePropertyUsers } from '../hooks/useUsers';
+import { useProperties } from '../hooks/useProperties';
 import { supabase } from '../lib/supabase';
 import { T, S } from '../lib/theme';
 
@@ -531,6 +532,62 @@ function AppSettingsTab() {
   );
 }
 
+// ── Properties Tab (admin) — per-property branding/logo ───────────
+function PropertiesTab() {
+  const { properties, uploadPropertyLogo, removePropertyLogo } = useProperties();
+  const [busyId, setBusyId] = useState(null);
+  const [msg, setMsg] = useState({});
+
+  const onPick = async (prop, file) => {
+    if (!file) return;
+    setBusyId(prop.id); setMsg(m => ({ ...m, [prop.id]: '' }));
+    const { error } = await uploadPropertyLogo(prop.id, file);
+    setMsg(m => ({ ...m, [prop.id]: error ? 'Error: ' + error.message : 'Logo updated ✓' }));
+    setBusyId(null);
+    setTimeout(() => setMsg(m => ({ ...m, [prop.id]: '' })), 4000);
+  };
+
+  const onRemove = async (prop) => {
+    setBusyId(prop.id);
+    await removePropertyLogo(prop.id);
+    setBusyId(null);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'6px' }}>PROPERTY BRANDING</div>
+      <div style={{ fontSize:'12px', color:T.textFaint, fontFamily:T.sans, marginBottom:'16px', lineHeight:'1.5' }}>
+        Upload a logo for each property. It replaces the emoji icon in the property list and header. PNG or JPG, under 2MB. Square or wide images both work.
+      </div>
+
+      {properties.map(prop => (
+        <div key={prop.id} style={{ display:'flex', alignItems:'center', gap:'14px', background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'10px', padding:'14px', marginBottom:'8px' }}>
+          <div style={{ width:'52px', height:'52px', borderRadius:'10px', background:prop.logo_url?T.surface:T.primaryFade, border:`1px solid ${prop.logo_url?T.border:T.primaryBorder}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'26px', flexShrink:0, overflow:'hidden' }}>
+            {prop.logo_url
+              ? <img src={prop.logo_url} alt={prop.name} style={{ width:'100%', height:'100%', objectFit:'contain', padding:'4px' }}/>
+              : prop.icon}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans }}>{prop.name}</div>
+            {msg[prop.id] && <div style={{ fontSize:'11px', color:msg[prop.id].includes('Error')?T.red:T.accent, marginTop:'2px', fontFamily:T.sans }}>{msg[prop.id]}</div>}
+            <div style={{ display:'flex', gap:'8px', marginTop:'6px' }}>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, color:T.accent, borderRadius:'6px', padding:'5px 12px', cursor:busyId===prop.id?'default':'pointer', fontSize:'12px', fontFamily:T.sans, fontWeight:'600', opacity:busyId===prop.id?0.6:1 }}>
+                {busyId===prop.id ? 'Uploading…' : (prop.logo_url ? 'Replace logo' : 'Upload logo')}
+                <input type="file" accept="image/*" disabled={busyId===prop.id} onChange={e=>onPick(prop, e.target.files?.[0])} style={{ display:'none' }}/>
+              </label>
+              {prop.logo_url && (
+                <button onClick={()=>onRemove(prop)} disabled={busyId===prop.id} style={{ background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'6px', padding:'5px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Settings Page ────────────────────────────────────────────
 export default function SettingsPage({ onBack, properties }) {
   const { isAdmin } = useAuth();
@@ -540,6 +597,7 @@ export default function SettingsPage({ onBack, properties }) {
     { id:'profile', label:'Profile', icon:<Ic.person/> },
     ...(isAdmin ? [
       { id:'users',    label:'Users',    icon:<Ic.person/> },
+      { id:'props',    label:'Branding', icon:<Ic.cog/> },
       { id:'audit',    label:'Audit Log', icon:<Ic.audit/> },
       { id:'app',      label:'Settings', icon:<Ic.cog/> },
     ] : []),
@@ -571,6 +629,7 @@ export default function SettingsPage({ onBack, properties }) {
       <div style={{ maxWidth:'680px', margin:'0 auto', padding:'20px 14px' }}>
         {tab==='profile' && <ProfileTab/>}
         {tab==='users'   && <UsersTab properties={properties}/>}
+        {tab==='props'   && <PropertiesTab/>}
         {tab==='audit'   && <AuditTab properties={properties}/>}
         {tab==='app'     && <AppSettingsTab/>}
       </div>

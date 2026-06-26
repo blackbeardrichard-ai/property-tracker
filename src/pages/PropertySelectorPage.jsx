@@ -87,8 +87,10 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
             onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.primary; e.currentTarget.style.boxShadow=`0 4px 20px ${T.primaryFade}`; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; e.currentTarget.style.boxShadow=T.shadow; }}
           >
-            <div style={{ width:'48px', height:'48px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', flexShrink:0 }}>
-              {prop.icon}
+            <div style={{ width:'48px', height:'48px', background:prop.logo_url?T.surface:T.primaryFade, border:`1px solid ${prop.logo_url?T.border:T.primaryBorder}`, borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', flexShrink:0, overflow:'hidden' }}>
+              {prop.logo_url
+                ? <img src={prop.logo_url} alt={prop.name} style={{ width:'100%', height:'100%', objectFit:'contain', padding:'4px' }}/>
+                : prop.icon}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:'16px', fontWeight:'700', color:T.text }}>{prop.name}</div>

@@ -62,5 +62,38 @@ export function useProperties() {
     return {};
   };
 
-  return { properties, loading, error, addProperty, updateProperty, archiveProperty, refresh: fetchProperties };
+  // Upload a logo image for a property to the 'branding' bucket and save its
+  // public URL on the property. Replaces any existing logo for that property.
+  const uploadPropertyLogo = async (id, file) => {
+    if (!file) return { error: { message: 'No file selected' } };
+    if (!file.type.startsWith('image/')) return { error: { message: 'Please choose an image file' } };
+    if (file.size > 2 * 1024 * 1024) return { error: { message: 'Image must be under 2MB' } };
+
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    // Stable path per property so a new upload overwrites the old one.
+    const path = `${id}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('branding')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (upErr) return { error: upErr };
+
+    const { data: pub } = supabase.storage.from('branding').getPublicUrl(path);
+    // Cache-bust so the new image shows immediately despite the public URL being stable.
+    const url = `${pub.publicUrl}?v=${Date.now()}`;
+
+    const { error: updErr } = await supabase.from('properties').update({ logo_url: url }).eq('id', id);
+    if (updErr) return { error: updErr };
+    await fetchProperties();
+    return { data: { url } };
+  };
+
+  const removePropertyLogo = async (id) => {
+    const { error: updErr } = await supabase.from('properties').update({ logo_url: null }).eq('id', id);
+    if (updErr) return { error: updErr };
+    await fetchProperties();
+    return {};
+  };
+
+  return { properties, loading, error, addProperty, updateProperty, archiveProperty, uploadPropertyLogo, removePropertyLogo, refresh: fetchProperties };
 }

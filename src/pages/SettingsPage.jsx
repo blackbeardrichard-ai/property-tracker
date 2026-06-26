@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUsers, usePropertyUsers } from '../hooks/useUsers';
 import { useProperties } from '../hooks/useProperties';
+import DataExportTab from './DataExportTab';
 import { supabase } from '../lib/supabase';
 import { T, S } from '../lib/theme';
 
@@ -122,12 +123,18 @@ function ProfileTab() {
 const OVERRIDABLE_CAPABILITIES = [
   { key:'edit_status_backward', label:'Edit material status backward', hint:'Change a material to any status, including reversing “Used”.' },
   { key:'edit_priority',        label:'Edit task priority',            hint:'Set high / medium / low on tasks.' },
-  { key:'view_asset_register',  label:'View global asset register',    hint:'See assets across all properties (coming soon).' },
+  { key:'view_asset_register',  label:'View global asset register',    hint:'See assets across all properties they can access.' },
+  { key:'global_search',        label:'Global search',                 hint:'Search across all accessible properties.' },
+  { key:'view_shopping_list',   label:'Global shopping list',          hint:'See pending materials across accessible properties.' },
+  { key:'data_export',          label:'Data export',                   hint:'Download data as an Excel workbook.' },
 ];
 const ROLE_DEFAULT_CAPS = {
   edit_status_backward: ['admin'],
   edit_priority:        ['admin','manager'],
   view_asset_register:  ['admin'],
+  global_search:        ['admin'],
+  view_shopping_list:   ['admin'],
+  data_export:          ['admin'],
 };
 
 function UsersTab({ properties }) {
@@ -590,7 +597,7 @@ function PropertiesTab() {
 
 // ── Main Settings Page ────────────────────────────────────────────
 export default function SettingsPage({ onBack, properties }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
   const [tab, setTab] = useState('profile');
 
   const TABS = [
@@ -601,6 +608,7 @@ export default function SettingsPage({ onBack, properties }) {
       { id:'audit',    label:'Audit Log', icon:<Ic.audit/> },
       { id:'app',      label:'Settings', icon:<Ic.cog/> },
     ] : []),
+    ...(can('data_export') ? [{ id:'export', label:'Export', icon:<Ic.audit/> }] : []),
   ];
 
   return (
@@ -632,6 +640,7 @@ export default function SettingsPage({ onBack, properties }) {
         {tab==='props'   && <PropertiesTab/>}
         {tab==='audit'   && <AuditTab properties={properties}/>}
         {tab==='app'     && <AppSettingsTab/>}
+        {tab==='export'  && <DataExportTab/>}
       </div>
     </div>
   );

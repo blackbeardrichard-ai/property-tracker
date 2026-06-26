@@ -6,7 +6,7 @@ import { T, S } from '../lib/theme';
 
 const ICONS = ['🏠','🌾','🌿','🏡','🏗️','🏢','🌲','🏕️','🌴','🏔️'];
 
-export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegister }) {
+export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegister, onSearch, onShoppingList }) {
   const { profile, isAdmin, signOut, can } = useAuth();
   const { properties, loading, addProperty } = useProperties();
   const { stats, totals, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
@@ -59,8 +59,8 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
           </div>
         </div>
 
-        {/* Overview summary bar — stat totals + asset register access */}
-        {(showSummary || can('view_asset_register')) && (
+        {/* Overview summary bar — stat totals + global tool access */}
+        {(showSummary || can('view_asset_register') || can('global_search') || can('view_shopping_list')) && (
           <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
             {totals.overdue > 0 && (
               <div style={{ display:'flex', alignItems:'center', gap:'8px', background:T.redFade, border:`1px solid ${T.red}40`, borderRadius:'10px', padding:'10px 14px' }}>
@@ -73,6 +73,24 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
                 <span style={{ fontSize:'18px', fontWeight:'700', color:T.primary, fontFamily:T.mono }}>{totals.pending}</span>
                 <span style={{ fontSize:'12px', color:T.textMid }}>pending material{totals.pending===1?'':'s'}</span>
               </div>
+            )}
+            {can('global_search') && (
+              <button onClick={onSearch}
+                style={{ display:'flex', alignItems:'center', gap:'8px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'10px', padding:'10px 14px', cursor:'pointer', fontFamily:T.sans }}
+                onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.primary; }}
+                onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; }}>
+                <span style={{ fontSize:'16px' }}>🔍</span>
+                <span style={{ fontSize:'12px', color:T.textMid, fontWeight:'600' }}>Search</span>
+              </button>
+            )}
+            {can('view_shopping_list') && (
+              <button onClick={onShoppingList}
+                style={{ display:'flex', alignItems:'center', gap:'8px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'10px', padding:'10px 14px', cursor:'pointer', fontFamily:T.sans }}
+                onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.primary; }}
+                onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; }}>
+                <span style={{ fontSize:'16px' }}>🛒</span>
+                <span style={{ fontSize:'12px', color:T.textMid, fontWeight:'600' }}>Shopping List</span>
+              </button>
             )}
             {can('view_asset_register') && (
               <button onClick={onAssetRegister}

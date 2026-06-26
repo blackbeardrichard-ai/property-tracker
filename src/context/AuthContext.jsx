@@ -89,6 +89,9 @@ export function AuthProvider({ children }) {
     advance_status:          ['admin', 'manager', 'technician'],
     edit_priority:           ['admin', 'manager'],
     view_asset_register:     ['admin'],
+    global_search:           ['admin'],
+    view_shopping_list:      ['admin'],
+    data_export:             ['admin'],
   };
   const can = (capability) => {
     const role = profile?.role;

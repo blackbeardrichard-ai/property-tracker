@@ -8,6 +8,8 @@ import SettingsPage from './pages/SettingsPage';
 import ForcePasswordChange from './pages/ForcePasswordChange';
 import ResetPassword from './pages/ResetPassword';
 import AssetRegisterPage from './pages/AssetRegisterPage';
+import SearchPage from './pages/SearchPage';
+import ShoppingListPage from './pages/ShoppingListPage';
 import { useProperties } from './hooks/useProperties';
 import { T } from './lib/theme';
 
@@ -55,6 +57,15 @@ function Inner() {
     <AssetRegisterPage onBack={() => setView('properties')} />
   );
 
+  if (view === 'search') return (
+    <SearchPage onBack={() => setView('properties')}
+      onOpenProperty={(p) => { setActiveProperty(p); setSelectedTab(undefined); setView('property'); }} />
+  );
+
+  if (view === 'shopping') return (
+    <ShoppingListPage onBack={() => setView('properties')} />
+  );
+
   if (view === 'property' && activeProperty) return (
     <PropertyPage
       property={activeProperty}
@@ -69,6 +80,8 @@ function Inner() {
       onSelect={(p, tab) => { setActiveProperty(p); setSelectedTab(tab); setView('property'); }}
       onSettings={() => setView('settings')}
       onAssetRegister={() => setView('assets')}
+      onSearch={() => setView('search')}
+      onShoppingList={() => setView('shopping')}
     />
   );
 }

@@ -28,8 +28,24 @@ export function useUsers() {
     const { data, error } = await supabase.functions.invoke('invite-user', {
       body: { email, fullName, role, defaultPassword, assignments },
     });
-    if (error) return { error };
+
+    // On a non-2xx, supabase wraps it in a FunctionsHttpError whose generic
+    // message is unhelpful ("non-2xx status code"). The real reason is in the
+    // response body — read it so the UI can show something meaningful.
+    if (error) {
+      let realMsg = error.message;
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          const body = await error.context.json();
+          if (body?.error) realMsg = body.error;
+          else if (body?.warning) realMsg = body.warning;
+        }
+      } catch (_e) { /* fall back to the generic message */ }
+      return { error: { message: realMsg } };
+    }
+
     if (data?.error) return { error: { message: data.error } };
+    if (data?.warning) return { error: { message: data.warning } };
     await fetchUsers();
     return { data };
   };

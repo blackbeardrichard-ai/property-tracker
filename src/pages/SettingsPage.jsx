@@ -274,7 +274,14 @@ function UsersTab({ properties }) {
             })}
           </div>
 
-          {inviteMsg && <div style={{ fontSize:'13px', color:inviteMsg.includes('Error')?T.red:T.accent, marginBottom:'12px', fontFamily:T.sans, lineHeight:'1.5' }}>{inviteMsg}</div>}
+          {inviteMsg && (
+            <div style={{ fontSize:'13px', fontFamily:T.sans, marginBottom:'12px', padding:'10px 14px', borderRadius:'8px', lineHeight:'1.5',
+              color: inviteMsg.includes('Error')?T.red:T.accent,
+              background: inviteMsg.includes('Error')?T.redFade:T.primaryFade,
+              border:`1px solid ${inviteMsg.includes('Error')?`${T.red}30`:T.primaryBorder}` }}>
+              {inviteMsg}
+            </div>
+          )}
 
           <div style={{ display:'flex', gap:'8px' }}>
             <button onClick={()=>{ setAdding(false); setInviteMsg(''); }} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>

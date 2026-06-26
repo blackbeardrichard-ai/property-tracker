@@ -16,7 +16,19 @@ export function useAssets(propertyId) {
       .select(`*, asset_movements(*), asset_service_logs(*)`)
       .eq('current_property_id', propertyId)
       .order('name');
-    setAssets(data || []);
+    // Resolve authoriser names client-side (avoids depending on the exact FK
+    // constraint name for an embedded join).
+    const ids = [...new Set((data || []).flatMap(a => (a.asset_movements||[]).map(m => m.authorised_by)).filter(Boolean))];
+    let nameById = {};
+    if (ids.length) {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids);
+      (profs || []).forEach(p => { nameById[p.id] = p.full_name; });
+    }
+    const enriched = (data || []).map(a => ({
+      ...a,
+      asset_movements: (a.asset_movements||[]).map(m => ({ ...m, authoriser: { full_name: nameById[m.authorised_by] || null } })),
+    }));
+    setAssets(enriched);
     setLoading(false);
   }, [propertyId]);
 

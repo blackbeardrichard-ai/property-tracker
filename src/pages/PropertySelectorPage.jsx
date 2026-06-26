@@ -6,8 +6,8 @@ import { T, S } from '../lib/theme';
 
 const ICONS = ['🏠','🌾','🌿','🏡','🏗️','🏢','🌲','🏕️','🌴','🏔️'];
 
-export default function PropertySelectorPage({ onSelect, onSettings }) {
-  const { profile, isAdmin, signOut } = useAuth();
+export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegister }) {
+  const { profile, isAdmin, signOut, can } = useAuth();
   const { properties, loading, addProperty } = useProperties();
   const { stats, totals, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
   const [adding, setAdding] = useState(false);
@@ -59,8 +59,8 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
           </div>
         </div>
 
-        {/* Overview summary bar — totals across all properties */}
-        {showSummary && (
+        {/* Overview summary bar — stat totals + asset register access */}
+        {(showSummary || can('view_asset_register')) && (
           <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
             {totals.overdue > 0 && (
               <div style={{ display:'flex', alignItems:'center', gap:'8px', background:T.redFade, border:`1px solid ${T.red}40`, borderRadius:'10px', padding:'10px 14px' }}>
@@ -73,6 +73,15 @@ export default function PropertySelectorPage({ onSelect, onSettings }) {
                 <span style={{ fontSize:'18px', fontWeight:'700', color:T.primary, fontFamily:T.mono }}>{totals.pending}</span>
                 <span style={{ fontSize:'12px', color:T.textMid }}>pending material{totals.pending===1?'':'s'}</span>
               </div>
+            )}
+            {can('view_asset_register') && (
+              <button onClick={onAssetRegister}
+                style={{ display:'flex', alignItems:'center', gap:'8px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'10px', padding:'10px 14px', cursor:'pointer', fontFamily:T.sans }}
+                onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.primary; }}
+                onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; }}>
+                <span style={{ fontSize:'16px' }}>🚜</span>
+                <span style={{ fontSize:'12px', color:T.textMid, fontWeight:'600' }}>Asset Register</span>
+              </button>
             )}
           </div>
         )}

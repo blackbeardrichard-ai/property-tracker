@@ -7,6 +7,7 @@ import PropertyPage from './pages/PropertyPage';
 import SettingsPage from './pages/SettingsPage';
 import ForcePasswordChange from './pages/ForcePasswordChange';
 import ResetPassword from './pages/ResetPassword';
+import AssetRegisterPage from './pages/AssetRegisterPage';
 import { useProperties } from './hooks/useProperties';
 import { T } from './lib/theme';
 
@@ -50,6 +51,10 @@ function Inner() {
     <SettingsPage properties={properties} onBack={() => setView('properties')} />
   );
 
+  if (view === 'assets') return (
+    <AssetRegisterPage onBack={() => setView('properties')} />
+  );
+
   if (view === 'property' && activeProperty) return (
     <PropertyPage
       property={activeProperty}
@@ -63,6 +68,7 @@ function Inner() {
     <PropertySelectorPage
       onSelect={(p, tab) => { setActiveProperty(p); setSelectedTab(tab); setView('property'); }}
       onSettings={() => setView('settings')}
+      onAssetRegister={() => setView('assets')}
     />
   );
 }

@@ -173,6 +173,9 @@ function AssetCard({ asset, properties, propertyId, canManage, canDelete, onUpda
   const [showMove, setShowMove] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const logs = asset.asset_service_logs || [];
+  const moves = [...(asset.asset_movements || [])].sort((a,b)=>new Date(b.moved_date)-new Date(a.moved_date));
+  const propName = (id) => { const p = (properties||[]).find(x=>x.id===id); return p ? `${p.icon} ${p.name}` : 'Unknown'; };
+  const fmtD = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 
   return (
     <>
@@ -225,7 +228,7 @@ function AssetCard({ asset, properties, propertyId, canManage, canDelete, onUpda
                 ['Purchase Price', fmtCurrency(asset.purchase_price)],
                 ['Notes', asset.notes],
               ].filter(([,v])=>v).map(([label,value])=>(
-                <div key={label} style={{ background:'rgba(0,0,0,0.15)', borderRadius:'6px', padding:'8px 10px' }}>
+                <div key={label} style={{ background:T.controlBgFaint, borderRadius:'6px', padding:'8px 10px' }}>
                   <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginBottom:'2px' }}>{label}</div>
                   <div style={{ fontSize:'12px', color:T.textMid, fontFamily:T.sans }}>{value}</div>
                 </div>
@@ -241,6 +244,25 @@ function AssetCard({ asset, properties, propertyId, canManage, canDelete, onUpda
                     <span style={{ color:T.accent, fontFamily:T.mono, flexShrink:0 }}>{fmtDate(log.done_date)}</span>
                     <span style={{ color:T.textMid, fontFamily:T.sans, flex:1 }}>{log.description}</span>
                     {log.invoice_amount && <span style={{ color:T.textFaint, fontFamily:T.mono }}>{fmtCurrency(log.invoice_amount)}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Movement history */}
+            {moves.length > 0 && (
+              <div style={{ marginBottom:'12px' }}>
+                <div style={{ fontSize:'10px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'8px' }}>MOVEMENT HISTORY</div>
+                {moves.map(m => (
+                  <div key={m.id} style={{ padding:'6px 0', borderBottom:`1px solid ${T.border}` }}>
+                    <div style={{ fontSize:'12px', color:T.text, fontFamily:T.sans, fontWeight:'600' }}>
+                      {propName(m.from_property)} <span style={{ color:T.textFaint }}>→</span> {propName(m.to_property)}
+                    </div>
+                    <div style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono, marginTop:'2px' }}>
+                      {fmtD(m.moved_date)}
+                      {m.authoriser?.full_name && <span> · authorised by {m.authoriser.full_name}</span>}
+                    </div>
+                    {m.reason && <div style={{ fontSize:'11px', color:T.textMid, fontFamily:T.sans, marginTop:'2px', fontStyle:'italic' }}>“{m.reason}”</div>}
                   </div>
                 ))}
               </div>

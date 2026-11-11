@@ -34,7 +34,7 @@ function Inner() {
 
   if (loading) return (
     <div style={{ minHeight:'100vh', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ color:'#95D5B2', fontFamily:"'DM Mono', monospace", fontSize:'13px' }}>Loading Property Tracker…</div>
+      <div role="status" style={{ color:T.textMid, fontFamily:T.sans, fontSize:'15px' }}>Loading Property Tracker…</div>
     </div>
   );
 
@@ -59,7 +59,7 @@ function Inner() {
 
   if (view === 'search') return (
     <SearchPage onBack={() => setView('properties')}
-      onOpenProperty={(p) => { setActiveProperty(p); setSelectedTab(undefined); setView('property'); }} />
+      onOpenProperty={(p, tab) => { setActiveProperty(p); setSelectedTab(tab); setView('property'); }} />
   );
 
   if (view === 'shopping') return (

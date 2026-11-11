@@ -2,18 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#C8531A" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Property Tracker" />
     <meta name="description" content="Property Tracker — manage your properties, tasks and maintenance" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
     <title>Property Tracker</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #F2F2F2; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        background: #F4F5F7; color: #111827;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-feature-settings: 'tnum' 1, 'cv11' 1;
+        -webkit-font-smoothing: antialiased; overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button, input, select, textarea { font: inherit; color: inherit; }
+      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid #1F4E79; outline-offset: 2px;
+      }
+      input::placeholder, textarea::placeholder { color: #6B7280; opacity: 1; }
       #root { min-height: 100vh; min-height: 100dvh; }
     </style>
   </head>

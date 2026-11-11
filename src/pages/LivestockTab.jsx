@@ -2,353 +2,242 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLivestock } from '../hooks/useLivestock';
 import { T, S } from '../lib/theme';
+import { fmtDate, todayISO } from '../lib/format';
+import { Icon, Chip, Segmented, Field, Sheet, ConfirmSheet, ActionMenu, Loading, Empty, Toast } from '../components/ui';
 
 const SPECIES = ['Cattle', 'Game', 'Sheep', 'Goat', 'Pig', 'Horse', 'Donkey', 'Other'];
 const EVENT_TYPES = [
-  { value:'birth',     label:'Birth',           icon:'🐣', color:'#95D5B2' },
-  { value:'death',     label:'Death',           icon:'💀', color:'#e07070' },
-  { value:'treatment', label:'Vet Treatment',   icon:'💉', color:'#e8c44a' },
-  { value:'movement',  label:'Movement',        icon:'🚛', color:'#95D5B2' },
-  { value:'sale',      label:'Sale',            icon:'💰', color:'#e8c44a' },
-  { value:'pregnancy', label:'Pregnancy',       icon:'🤰', color:'#95D5B2' },
-  { value:'calving',   label:'Calving',         icon:'🐄', color:'#95D5B2' },
-  { value:'other',     label:'Other',           icon:'📝', color:T.textDim  },
+  { value: 'birth',     label: 'Birth' },
+  { value: 'death',     label: 'Death' },
+  { value: 'treatment', label: 'Vet treatment' },
+  { value: 'movement',  label: 'Movement' },
+  { value: 'sale',      label: 'Sale' },
+  { value: 'pregnancy', label: 'Pregnancy' },
+  { value: 'calving',   label: 'Calving' },
+  { value: 'other',     label: 'Other' },
 ];
+const STATUS = { alive: ['Alive', 'ok'], deceased: ['Deceased', 'red'], sold: ['Sold', 'neutral'] };
+const fmtRand = v => (v ? `R ${parseFloat(v).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` : '');
+const label = a => [a.tag_number, a.name].filter(Boolean).join(' · ') || a.species;
 
-const fmtDate = d => d ? new Date(d).toLocaleDateString('en-ZA', { day:'2-digit', month:'short', year:'numeric' }) : '—';
-
-const Ic = {
-  plus:    (s=14) => <svg width={s} height={s} viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
-  chevron: (open) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{transform:open?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.2s',flexShrink:0}}><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  dots:    () => <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="12" cy="8" r="1.4" fill="currentColor"/></svg>,
-  trash:   () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 3h11M4 3V2h5v1M2 3l1 8h7l1-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-};
-
-function DotsMenu({ items }) {
-  const [open, setOpen] = useState(false);
+function PillGroup({ options, value, onChange, ariaLabel }) {
   return (
-    <div style={{ position:'relative', flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-      <button onClick={e=>{e.stopPropagation();setOpen(!open);}} style={{ background:open?T.primaryFade:'none', border:open?`1px solid ${T.primaryBorder}`:'1px solid transparent', cursor:'pointer', color:open?T.accent:T.textDim, borderRadius:'6px', display:'flex', alignItems:'center', padding:'4px 6px' }}>
-        <Ic.dots/>
-      </button>
-      {open && (
-        <>
-          <div style={{ position:'fixed', inset:0, zIndex:140 }} onClick={()=>setOpen(false)}/>
-          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:T.popoverBg, border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
-            {items.map((item,i) => item==='divider'
-              ? <div key={i} style={{ height:'1px', background:T.border, margin:'4px 0' }}/>
-              : <button key={i} onClick={()=>{item.action();setOpen(false);}} style={{ display:'flex', alignItems:'center', gap:'9px', width:'100%', background:'none', border:'none', color:item.danger?T.red:T.textMid, padding:'10px 13px', borderRadius:'7px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans, textAlign:'left' }}
-                  onMouseEnter={e=>e.currentTarget.style.background=item.danger?T.redFade:T.primaryFade}
-                  onMouseLeave={e=>e.currentTarget.style.background='none'}
-                >{item.icon} {item.label}</button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Add Animal Modal ──────────────────────────────────────────────
-function AddAnimalModal({ animals, onSave, onClose }) {
-  const [form, setForm] = useState({
-    species:'Cattle', breed:'', tag_number:'', name:'',
-    gender:'female', dob:'', mother_id:'', purchase_date:'',
-    purchase_price:'', notes:''
-  });
-  const f = key => e => setForm(p=>({...p,[key]:e.target.value}));
-  const fld = (label, child) => <div style={{ marginBottom:'12px' }}><div style={S.fieldLabel}>{label}</div>{child}</div>;
-
-  const females = animals.filter(a=>a.gender==='female'&&a.status==='alive'&&a.species===form.species);
-
-  return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
-        <div style={S.mHead}><span style={S.mLabel}>ADD ANIMAL</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-
-        {fld('SPECIES', <select value={form.species} onChange={f('species')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
-          {SPECIES.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>)}
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('TAG NUMBER', <input value={form.tag_number} onChange={f('tag_number')} placeholder="e.g. T001" style={S.input}/>)}</div>
-          <div>{fld('NAME (optional)', <input value={form.name} onChange={f('name')} placeholder="e.g. Daisy" style={S.input}/>)}</div>
-        </div>
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>
-            {fld('GENDER', <div style={{ display:'flex', gap:'6px' }}>
-              {['male','female','unknown'].map(g=>(
-                <button key={g} onClick={()=>setForm(p=>({...p,gender:g}))} style={{ flex:1, background:form.gender===g?T.primary:T.controlBg, border:'none', color:form.gender===g?T.text:T.textMid, borderRadius:'5px', padding:'7px 4px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{g}</button>
-              ))}
-            </div>)}
-          </div>
-          <div>{fld('BREED (optional)', <input value={form.breed} onChange={f('breed')} placeholder="e.g. Brahman" style={S.input}/>)}</div>
-        </div>
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('DATE OF BIRTH', <input type="date" value={form.dob} onChange={f('dob')} style={{ ...S.input }}/>)}</div>
-          <div>{fld('MOTHER (optional)', <select value={form.mother_id} onChange={f('mother_id')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
-            <option value="">— None —</option>
-            {females.map(a=><option key={a.id} value={a.id}>{a.tag_number||a.name}</option>)}
-          </select>)}</div>
-        </div>
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('PURCHASE DATE', <input type="date" value={form.purchase_date} onChange={f('purchase_date')} style={{ ...S.input }}/>)}</div>
-          <div>{fld('PURCHASE PRICE (R)', <input type="number" value={form.purchase_price} onChange={f('purchase_price')} min="0" step="0.01" placeholder="e.g. 8500" style={S.input}/>)}</div>
-        </div>
-
-        {fld('NOTES (optional)', <textarea value={form.notes} onChange={f('notes')} rows={2} placeholder="Any additional details…" style={{ ...S.input, resize:'none' }}/>)}
-
-        <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-          <button onClick={()=>{ if(!form.species)return; onSave({ ...form, mother_id:form.mother_id||null, dob:form.dob||null, purchase_date:form.purchase_date||null, purchase_price:form.purchase_price||null, status:'alive' }); onClose(); }} style={{ ...S.btnPrimary, flex:2 }}>Add Animal</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Add Event Modal ───────────────────────────────────────────────
-function AddEventModal({ animal, onSave, onClose }) {
-  const [form, setForm] = useState({
-    eventType:'treatment', eventDate:new Date().toISOString().split('T')[0],
-    description:'', company:'', cost:'', photoUrl:''
-  });
-  const f = key => e => setForm(p=>({...p,[key]:e.target.value}));
-  const fld = (label, child) => <div style={{ marginBottom:'12px' }}><div style={S.fieldLabel}>{label}</div>{child}</div>;
-  const eventInfo = EVENT_TYPES.find(e=>e.value===form.eventType);
-
-  return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
-        <div style={S.mHead}><span style={S.mLabel}>LOG EVENT — {animal.tag_number||animal.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-
-        {fld('EVENT TYPE', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {EVENT_TYPES.map(et=>(
-            <button key={et.value} onClick={()=>setForm(p=>({...p,eventType:et.value}))} style={{ background:form.eventType===et.value?`${et.color}25`:T.controlBg, border:`1px solid ${form.eventType===et.value?et.color:T.border}`, color:form.eventType===et.value?et.color:T.textMid, borderRadius:'6px', padding:'6px 10px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
-              {et.icon} {et.label}
-            </button>
-          ))}
-        </div>)}
-
-        {fld('DATE', <input type="date" value={form.eventDate} onChange={f('eventDate')} style={{ ...S.input }}/>)}
-        {fld('DESCRIPTION', <textarea value={form.description} onChange={f('description')} rows={2} placeholder={
-          form.eventType==='death'?'Cause of death, circumstances…':
-          form.eventType==='treatment'?'Treatment given, medication, dosage…':
-          form.eventType==='sale'?'Buyer name, sale conditions…':
-          'Details of the event…'
-        } style={{ ...S.input, resize:'none' }}/>)}
-
-        {['treatment','death','sale'].includes(form.eventType) && fld('COMPANY / VET / BUYER', <input value={form.company} onChange={f('company')} placeholder="e.g. Dr. Smith Veterinary" style={S.input}/>)}
-        {['treatment','sale'].includes(form.eventType) && fld('COST / AMOUNT (R)', <input type="number" value={form.cost} onChange={f('cost')} min="0" step="0.01" placeholder="e.g. 450" style={S.input}/>)}
-
-        {form.eventType === 'death' && (
-          <div style={{ background:T.redFade, border:`1px solid ${T.red}`, borderRadius:'8px', padding:'10px 12px', marginBottom:'12px' }}>
-            <div style={{ fontSize:'12px', color:T.red, fontFamily:T.sans }}>
-              ⚠️ This will mark the animal as deceased. Photo evidence is recommended — attach a photo to the description or note the reference.
-            </div>
-          </div>
-        )}
-
-        <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-          <button onClick={()=>{ onSave(form); onClose(); }} style={{ ...S.btnPrimary, flex:2, background:form.eventType==='death'?T.red:T.primary }}>
-            Log {eventInfo?.label}
+    <div role="group" aria-label={ariaLabel} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {options.map(([v, l]) => {
+        const on = v === value;
+        return (
+          <button key={v} onClick={() => onChange(v)} aria-pressed={on}
+            style={{ height: 40, padding: '0 14px', borderRadius: 20, cursor: 'pointer', fontFamily: T.sans, fontSize: 14, fontWeight: on ? 600 : 500,
+              background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}` }}>
+            {l}
           </button>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Animal Card ───────────────────────────────────────────────────
-function AnimalCard({ animal, allAnimals, canManage, canDelete, onAddEvent, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
-  const [showEvent, setShowEvent] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const events = animal.livestock_events || [];
-  const isDeceased = animal.status === 'deceased';
-  const isSold = animal.status === 'sold';
-
-  const statusColor = isDeceased?T.red:isSold?T.warn:T.accent;
-  const statusLabel = isDeceased?'Deceased':isSold?'Sold':'Alive';
-
+function AddAnimalSheet({ animals, onSave, onClose }) {
+  const [form, setForm] = useState({ species: 'Cattle', breed: '', tag_number: '', name: '', gender: 'female', dob: '', mother_id: '', purchase_date: '', purchase_price: '', notes: '' });
+  const [err, setErr] = useState('');
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const mothers = animals.filter(a => a.gender === 'female' && a.status === 'alive' && a.species === form.species);
+  const half = { flex: 1, minWidth: 0 };
+  const save = async () => {
+    const nul = v => (v === '' ? null : v);
+    const { error } = await onSave({ ...form, breed: nul(form.breed), tag_number: nul(form.tag_number), name: nul(form.name), notes: nul(form.notes),
+      mother_id: nul(form.mother_id), dob: nul(form.dob), purchase_date: nul(form.purchase_date), purchase_price: nul(form.purchase_price), status: 'alive' });
+    if (error) { setErr(error.message); return; }
+    onClose();
+  };
   return (
-    <>
-      {showEvent && <AddEventModal animal={animal} onSave={data=>onAddEvent(animal.id,data)} onClose={()=>setShowEvent(false)}/>}
-      {confirming && (
-        <div style={S.overlay} onClick={()=>setConfirming(false)}>
-          <div style={{ ...S.card, maxWidth:'300px', textAlign:'center' }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontSize:'28px', marginBottom:'10px' }}>🗑️</div>
-            <div style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans, marginBottom:'20px' }}>Delete {animal.tag_number||animal.name}?</div>
-            <div style={{ display:'flex', gap:'8px' }}>
-              <button onClick={()=>setConfirming(false)} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-              <button onClick={()=>{onDelete(animal.id);setConfirming(false);}} style={{ flex:2, background:T.red, border:'none', color:'#fff', fontWeight:'700', borderRadius:'8px', padding:'11px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans }}>Delete</button>
-            </div>
-          </div>
+    <Sheet title="Add animal" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Add animal</button></>}>
+      <Field label="Species" htmlFor="an-sp"><select id="an-sp" value={form.species} onChange={f('species')} style={S.input}>{SPECIES.map(s => <option key={s}>{s}</option>)}</select></Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Tag no." htmlFor="an-tag" style={half}><input id="an-tag" value={form.tag_number} onChange={f('tag_number')} placeholder="e.g. T001" style={S.input}/></Field>
+        <Field label="Name (optional)" htmlFor="an-name" style={half}><input id="an-name" value={form.name} onChange={f('name')} style={S.input}/></Field>
+      </div>
+      <Field label="Sex">
+        <Segmented label="Sex" value={form.gender} onChange={v => setForm(p => ({ ...p, gender: v }))} options={[['female', 'Female'], ['male', 'Male'], ['unknown', 'Unknown']]}/>
+      </Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Breed (optional)" htmlFor="an-br" style={half}><input id="an-br" value={form.breed} onChange={f('breed')} placeholder="e.g. Brahman" style={S.input}/></Field>
+        <Field label="Date of birth" htmlFor="an-dob" style={half}><input id="an-dob" type="date" value={form.dob} onChange={f('dob')} style={S.input}/></Field>
+      </div>
+      <Field label="Mother (optional)" htmlFor="an-mom">
+        <select id="an-mom" value={form.mother_id} onChange={f('mother_id')} style={S.input}>
+          <option value="">None</option>
+          {mothers.map(a => <option key={a.id} value={a.id}>{label(a)}</option>)}
+        </select>
+      </Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Purchase date" htmlFor="an-pd" style={half}><input id="an-pd" type="date" value={form.purchase_date} onChange={f('purchase_date')} style={S.input}/></Field>
+        <Field label="Price, R" htmlFor="an-pp" style={half}><input id="an-pp" type="number" inputMode="decimal" min="0" step="0.01" value={form.purchase_price} onChange={f('purchase_price')} style={S.input}/></Field>
+      </div>
+      <Field label="Notes (optional)" htmlFor="an-notes"><textarea id="an-notes" rows={2} value={form.notes} onChange={f('notes')} style={S.textarea}/></Field>
+      {err && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
+    </Sheet>
+  );
+}
+
+function EventSheet({ animal, onSave, onClose }) {
+  const [form, setForm] = useState({ eventType: 'treatment', eventDate: todayISO(), description: '', company: '', cost: '', photoUrl: '' });
+  const [err, setErr] = useState('');
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const et = form.eventType;
+  const death = et === 'death';
+  const save = async () => {
+    const res = await onSave(form);
+    if (res?.error) { setErr(res.error.message); return; }
+    onClose();
+  };
+  return (
+    <Sheet title="Log event" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button>
+        <button onClick={save} style={{ ...(death ? S.btnDanger : S.btnPrimary), flex: 2 }}>Log {EVENT_TYPES.find(e => e.value === et)?.label.toLowerCase()}</button></>}>
+      <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{label(animal)}</p>
+      <Field label="Event"><PillGroup ariaLabel="Event type" value={et} onChange={v => setForm(p => ({ ...p, eventType: v }))} options={EVENT_TYPES.map(e => [e.value, e.label])}/></Field>
+      <Field label="Date" htmlFor="ev-date"><input id="ev-date" type="date" max={todayISO()} value={form.eventDate} onChange={f('eventDate')} style={S.input}/></Field>
+      <Field label="Details" htmlFor="ev-desc">
+        <textarea id="ev-desc" rows={2} value={form.description} onChange={f('description')} style={S.textarea}
+          placeholder={death ? 'Cause and circumstances' : et === 'treatment' ? 'Treatment, medicine, dose' : et === 'sale' ? 'Buyer, conditions' : 'Details'}/>
+      </Field>
+      {['treatment', 'death', 'sale'].includes(et) && (
+        <Field label={et === 'sale' ? 'Buyer' : 'Vet or company'} htmlFor="ev-co"><input id="ev-co" value={form.company} onChange={f('company')} style={S.input}/></Field>
+      )}
+      {['treatment', 'sale'].includes(et) && (
+        <Field label={et === 'sale' ? 'Amount, R' : 'Cost, R'} htmlFor="ev-cost"><input id="ev-cost" type="number" inputMode="decimal" min="0" step="0.01" value={form.cost} onChange={f('cost')} style={S.input}/></Field>
+      )}
+      {death && (
+        <div style={{ background: T.redFade, border: `1px solid ${T.redBorder}`, color: T.red, borderRadius: 8, padding: '10px 12px', fontSize: 14, marginBottom: 12, lineHeight: 1.45 }}>
+          This marks the animal as deceased. Note any photo reference in the details.
         </div>
       )}
-
-      <div style={{ background:T.surface2, border:`1px solid ${isDeceased?T.red:T.border}`, borderRadius:'12px', marginBottom:'8px', overflow:'hidden', opacity:isDeceased?0.7:1 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 14px', cursor:'pointer' }} onClick={()=>setExpanded(!expanded)}>
-          <div style={{ fontSize:'24px', flexShrink:0 }}>
-            {animal.species==='Cattle'?'🐄':animal.species==='Game'?'🦌':animal.species==='Sheep'?'🐑':animal.species==='Goat'?'🐐':animal.species==='Horse'?'🐴':'🐾'}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-              <span style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans }}>
-                {animal.tag_number && <span style={{ fontFamily:T.mono, fontSize:'12px', color:T.accent, marginRight:'6px' }}>{animal.tag_number}</span>}
-                {animal.name || animal.species}
-              </span>
-              <span style={{ fontSize:'10px', fontFamily:T.mono, color:statusColor, background:`${statusColor}18`, borderRadius:'4px', padding:'2px 6px' }}>{statusLabel}</span>
-            </div>
-            <div style={{ display:'flex', gap:'8px', marginTop:'3px', flexWrap:'wrap' }}>
-              {animal.breed && <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>{animal.breed}</span>}
-              <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono, textTransform:'capitalize' }}>{animal.gender}</span>
-              {animal.dob && <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>Born: {fmtDate(animal.dob)}</span>}
-              {animal.mother && <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>Mother: {animal.mother.tag_number||animal.mother.name}</span>}
-            </div>
-          </div>
-          <div style={{ display:'flex', align:'center', gap:'8px', flexShrink:0 }}>
-            {events.length>0 && <span style={{ fontSize:'10px', fontFamily:T.mono, color:T.textDim, background:T.surface2, borderRadius:'4px', padding:'2px 6px' }}>{events.length} events</span>}
-            {canManage && <DotsMenu items={[
-              { icon:'📝', label:'Log Event', action:()=>setShowEvent(true) },
-              ...(canDelete?['divider',{ icon:<Ic.trash/>, label:'Delete', danger:true, action:()=>setConfirming(true) }]:[]),
-            ]}/>}
-            {Ic.chevron(expanded)}
-          </div>
+      {et === 'sale' && (
+        <div style={{ background: T.warnFade, border: `1px solid ${T.warnBorder}`, color: T.warn, borderRadius: 8, padding: '10px 12px', fontSize: 14, marginBottom: 12 }}>
+          This marks the animal as sold.
         </div>
+      )}
+      {err && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
+    </Sheet>
+  );
+}
 
-        {expanded && (
-          <div style={{ padding:'0 14px 14px', borderTop:`1px solid ${T.border}`, paddingTop:'12px' }}>
-            {/* Details grid */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'14px' }}>
-              {[
-                ['Species', animal.species],
-                ['Purchase Date', fmtDate(animal.purchase_date)],
-                ['Purchase Price', animal.purchase_price?`R ${parseFloat(animal.purchase_price).toLocaleString('en-ZA')}`:null],
-                ['Notes', animal.notes],
-              ].filter(([,v])=>v).map(([label,value])=>(
-                <div key={label} style={{ background:'rgba(0,0,0,0.15)', borderRadius:'6px', padding:'8px 10px' }}>
-                  <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginBottom:'2px' }}>{label}</div>
-                  <div style={{ fontSize:'12px', color:T.textMid, fontFamily:T.sans }}>{value}</div>
+function AnimalCard({ animal, perms, api, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState(null);
+  const events = [...(animal.livestock_events || [])].sort((a, b) => (a.event_date < b.event_date ? 1 : -1));
+  const [stLabel, stTone] = STATUS[animal.status] || STATUS.alive;
+  const active = animal.status === 'alive';
+  const sub = [animal.species, animal.breed, animal.gender && animal.gender !== 'unknown' ? animal.gender[0].toUpperCase() + animal.gender.slice(1) : null,
+    animal.dob ? `born ${fmtDate(animal.dob)}` : null].filter(Boolean).join(' · ');
+  const facts = [['Mother', animal.mother && label(animal.mother)], ['Purchased', animal.purchase_date && fmtDate(animal.purchase_date)], ['Price', fmtRand(animal.purchase_price)], ['Notes', animal.notes]].filter(([, v]) => v);
+
+  return (
+    <article style={{ ...S.card, marginBottom: 8, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+          style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px 12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: T.surface2, color: T.textMid, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="cow" size={22}/></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: active ? T.text : T.textMid }}>{label(animal)}</div>
+            <div style={S.meta}>{sub}</div>
+          </div>
+          {!active && <Chip tone={stTone}>{stLabel}</Chip>}
+          {events.length > 0 && <span style={{ ...S.meta, whiteSpace: 'nowrap' }}>{events.length} event{events.length === 1 ? '' : 's'}</span>}
+        </button>
+        <div style={{ paddingRight: 4 }}>
+          <ActionMenu title={label(animal)} label={`More actions for ${label(animal)}`} items={[
+            perms.canManage && active && { icon: 'note', label: 'Log event', onClick: () => setSheet('event') },
+            perms.canDelete && { icon: 'trash', label: 'Delete record', danger: true, onClick: () => setSheet('delete') },
+          ]}/>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 14px 14px' }}>
+          {facts.length > 0 && (
+            <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, margin: '0 0 14px' }}>
+              {facts.map(([k, v]) => (
+                <div key={k} style={{ background: T.surface2, borderRadius: 8, padding: '8px 10px', gridColumn: k === 'Notes' ? '1 / -1' : undefined }}>
+                  <dt style={S.meta}>{k}</dt><dd style={{ margin: 0, fontSize: 14, color: T.text }}>{v}</dd>
                 </div>
               ))}
-            </div>
-
-            {/* Event history */}
-            {events.length > 0 && (
-              <div style={{ marginBottom:'12px' }}>
-                <div style={{ fontSize:'10px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'8px' }}>EVENT HISTORY</div>
-                {events.sort((a,b)=>new Date(b.event_date)-new Date(a.event_date)).slice(0,5).map(ev => {
-                  const et = EVENT_TYPES.find(e=>e.value===ev.event_type);
-                  return (
-                    <div key={ev.id} style={{ display:'flex', gap:'10px', padding:'6px 0', borderBottom:`1px solid ${T.border}`, alignItems:'flex-start' }}>
-                      <span style={{ fontSize:'14px', flexShrink:0 }}>{et?.icon||'📝'}</span>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'11px', fontWeight:'600', color:et?.color||T.textMid, fontFamily:T.sans }}>{et?.label||ev.event_type}</span>
-                          <span style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono }}>{fmtDate(ev.event_date)}</span>
-                        </div>
-                        {ev.description && <div style={{ fontSize:'12px', color:T.textDim, fontFamily:T.sans, marginTop:'2px' }}>{ev.description}</div>}
-                        {ev.company && <div style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.mono, marginTop:'2px' }}>{ev.company}</div>}
-                        {ev.cost && <div style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.mono }}>R {parseFloat(ev.cost).toLocaleString('en-ZA')}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
+            </dl>
+          )}
+          <div style={S.fieldLabel}>Events</div>
+          {events.length === 0 && <div style={S.meta}>No events logged.</div>}
+          {events.slice(0, 8).map(ev => (
+            <div key={ev.id} style={{ padding: '8px 0', borderTop: `1px solid ${T.borderLight}` }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: ev.event_type === 'death' ? T.red : T.text }}>{EVENT_TYPES.find(e => e.value === ev.event_type)?.label || ev.event_type}</span>
+                <span style={S.meta}>{fmtDate(ev.event_date)}</span>
               </div>
-            )}
+              {ev.description && <div style={{ fontSize: 14, color: T.textMid, marginTop: 2 }}>{ev.description}</div>}
+              {(ev.company || ev.cost) && <div style={S.meta}>{[ev.company, fmtRand(ev.cost)].filter(Boolean).join(' · ')}</div>}
+            </div>
+          ))}
+          {perms.canManage && active && <button onClick={() => setSheet('event')} style={{ ...S.btnOutline, marginTop: 10 }}><Icon name="plus" size={16}/> Log event</button>}
+        </div>
+      )}
 
-            {canManage && !isDeceased && !isSold && (
-              <button onClick={()=>setShowEvent(true)} style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, color:T.accent, fontSize:'12px', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontFamily:T.sans, fontWeight:'600' }}>
-                📝 Log Event
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </>
+      {sheet === 'event' && <EventSheet animal={animal} onClose={() => setSheet(null)}
+        onSave={async d => { const r = await api.addEvent(animal.id, d); if (!r?.error) onDone(`${label(animal)}: event logged`); return r; }}/>}
+      {sheet === 'delete' && <ConfirmSheet title={`Delete ${label(animal)}?`} body="This removes the record. To record a death or sale, log an event instead. This can't be undone."
+        onConfirm={() => api.deleteAnimal(animal.id)} onClose={() => setSheet(null)}/>}
+    </article>
   );
 }
 
-// ── Main LivestockTab ─────────────────────────────────────────────
 export default function LivestockTab({ property }) {
-  const { canManage, isAdmin, canDelete } = useAuth();
-  const { animals, loading, addAnimal, deleteAnimal, addEvent } = useLivestock(property.id);
+  const { canManage, canDelete } = useAuth();
+  const api = useLivestock(property.id);
+  const { animals, loading } = api;
   const [adding, setAdding] = useState(false);
-  const [speciesFilter, setSpeciesFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('alive');
+  const [species, setSpecies] = useState('all');
+  const [status, setStatus] = useState('alive');
+  const [toast, setToast] = useState('');
 
-  const species = ['all', ...new Set(animals.map(a=>a.species))];
-  const filtered = animals
-    .filter(a => speciesFilter==='all' || a.species===speciesFilter)
-    .filter(a => statusFilter==='all' || a.status===statusFilter);
+  if (loading) return <Loading label="Loading livestock…"/>;
 
-  // Herd summary
-  const alive = animals.filter(a=>a.status==='alive');
-  const speciesSummary = SPECIES.map(s=>({ species:s, count:alive.filter(a=>a.species===s).length })).filter(s=>s.count>0);
-
-  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading livestock…</div>;
+  const alive = animals.filter(a => a.status === 'alive');
+  const summary = SPECIES.map(s => [s, alive.filter(a => a.species === s).length]).filter(([, n]) => n);
+  const speciesList = ['all', ...new Set(animals.map(a => a.species).filter(Boolean))];
+  const filtered = animals.filter(a => (species === 'all' || a.species === species) && (status === 'all' || a.status === status));
 
   return (
     <div>
-      {adding && <AddAnimalModal animals={animals} onSave={data=>addAnimal(data)} onClose={()=>setAdding(false)}/>}
-
-      {/* Herd summary */}
-      {speciesSummary.length > 0 && (
-        <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-          {speciesSummary.map(s=>(
-            <div key={s.species} style={{ background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, borderRadius:'8px', padding:'10px 14px', textAlign:'center', minWidth:'80px' }}>
-              <div style={{ fontSize:'20px', marginBottom:'4px' }}>
-                {s.species==='Cattle'?'🐄':s.species==='Game'?'🦌':s.species==='Sheep'?'🐑':s.species==='Goat'?'🐐':s.species==='Horse'?'🐴':'🐾'}
-              </div>
-              <div style={{ fontSize:'18px', fontWeight:'700', color:T.accent, fontFamily:T.sans }}>{s.count}</div>
-              <div style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>{s.species}</div>
+      {summary.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
+          <div style={{ ...S.card, padding: '12px 14px', minWidth: 88 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: T.text }}>{alive.length}</div>
+            <div style={{ ...S.meta, marginTop: 2 }}>Alive</div>
+          </div>
+          {summary.map(([s, n]) => (
+            <div key={s} style={{ ...S.card, padding: '12px 14px', minWidth: 88 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: T.text }}>{n}</div>
+              <div style={{ ...S.meta, marginTop: 2 }}>{s}</div>
             </div>
           ))}
-          <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'8px', padding:'10px 14px', textAlign:'center', minWidth:'80px' }}>
-            <div style={{ fontSize:'20px', marginBottom:'4px' }}>📊</div>
-            <div style={{ fontSize:'18px', fontWeight:'700', color:T.text, fontFamily:T.sans }}>{alive.length}</div>
-            <div style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>Total Alive</div>
-          </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
-        {['alive','deceased','sold','all'].map(s=>(
-          <button key={s} onClick={()=>setStatusFilter(s)} style={{ background:statusFilter===s?T.primary:T.controlBg, border:'none', color:statusFilter===s?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:statusFilter===s?'700':'400' }}>{s}</button>
-        ))}
+      <div style={{ marginBottom: 10 }}>
+        <Segmented label="Status" value={status} onChange={setStatus} options={[['alive', 'Alive'], ['sold', 'Sold'], ['deceased', 'Deceased'], ['all', 'All']]}/>
       </div>
-      {species.length > 2 && (
-        <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
-          {species.map(s=>(
-            <button key={s} onClick={()=>setSpeciesFilter(s)} style={{ background:speciesFilter===s?T.primaryFade:T.controlBgFaint, border:`1px solid ${speciesFilter===s?T.primaryBorder:T.border}`, color:speciesFilter===s?T.accent:T.textDim, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize' }}>{s}</button>
-          ))}
+      {speciesList.length > 2 && (
+        <div style={{ marginBottom: 14 }}>
+          <PillGroup ariaLabel="Species" value={species} onChange={setSpecies} options={speciesList.map(s => [s, s === 'all' ? 'All species' : s])}/>
         </div>
       )}
 
-      {/* Animal list */}
-      {filtered.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'50px 20px', color:T.textFaint, fontFamily:T.mono, fontSize:'13px' }}>
-          {animals.length===0?'No animals registered yet':'No animals match this filter'}
-        </div>
-      ) : filtered.map(animal=>(
-        <AnimalCard key={animal.id} animal={animal} allAnimals={animals}
-          canManage={canManage||isAdmin} canDelete={canDelete||isAdmin}
-          onAddEvent={addEvent} onDelete={deleteAnimal}
-        />
-      ))}
+      {filtered.length === 0 ? <Empty>{animals.length === 0 ? 'No animals registered yet.' : 'No animals match this filter.'}</Empty>
+        : filtered.map(a => <AnimalCard key={a.id} animal={a} perms={{ canManage, canDelete }} api={api} onDone={setToast}/>)}
 
-      {/* Add animal */}
-      {(canManage||isAdmin) && (
-        <button onClick={()=>setAdding(true)} style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:'none', border:`1px dashed ${T.primary}`, color:T.accent, fontSize:'12px', borderRadius:'6px', padding:'6px 14px', cursor:'pointer', fontFamily:T.sans, marginTop:'10px', fontWeight:'600' }}>
-          {Ic.plus(11)} Add Animal
-        </button>
-      )}
+      {canManage && <button onClick={() => setAdding(true)} style={{ ...S.btnDashed, marginTop: 6 }}><Icon name="plus" size={18}/> Add animal</button>}
+      {adding && <AddAnimalSheet animals={animals} onSave={api.addAnimal} onClose={() => setAdding(false)}/>}
+      {toast && <Toast message={toast} onDismiss={() => setToast('')}/>}
     </div>
   );
 }

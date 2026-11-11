@@ -2,52 +2,76 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { logAction } from '../lib/audit';
+import { fetchNames, rememberName } from '../lib/names';
+import { MATERIAL_STATUSES } from '../lib/status';
 
-const genId = () => Math.random().toString(36).substr(2,9) + Date.now().toString(36);
+const tempId = () => `tmp-${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36)}`;
+const byPos = (a, b) => (a.position ?? 0) - (b.position ?? 0);
 
+// Tasks → subtasks → materials for one property. Optimistic throughout: the UI
+// updates first, the database second, so nothing collapses or reloads on edit.
+// Fetched once per property page (PropertyPage) and shared by the tabs.
 export function useTasks(propertyId) {
   const { user, profile } = useAuth();
   const [tasks, setTasks] = useState([]);
+  const [names, setNames] = useState({});
   const [loading, setLoading] = useState(true);
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+
+  const log = (action, entityType, entityId, entityName, newValue = null) =>
+    logAction({ propertyId, userId: user.id, userName: profile?.full_name, action, entityType, entityId, entityName, newValue });
 
   const fetchTasks = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
     const { data } = await supabase
       .from('tasks')
-      .select(`*, subtasks(*, materials(*))`)
+      .select('*, subtasks(*, materials(*))')
       .eq('property_id', propertyId)
       .order('position');
-    setTasks(data || []);
+    const list = (data || []).map(t => ({ ...t, subtasks: [...(t.subtasks || [])].sort(byPos) }));
+    setTasks(list);
     setLoading(false);
+    const ids = list.flatMap(t => [t.assigned_to, ...(t.subtasks || []).flatMap(s => [s.completed_by, ...(s.materials || []).map(m => m.acquired_by)])]);
+    setNames(await fetchNames(ids));
   }, [propertyId]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // ── Tasks ─────────────────────────────────────────────────────
-  const addTask = async (name) => {
-    const tempId = genId();
-    const newTask = { id:tempId, name, position:tasksRef.current.length, priority:'medium', notes:'', due_date:null, assigned_to:null, subtasks:[] };
-    // Optimistic update — add immediately, no collapse
-    setTasks(prev => [...prev, newTask]);
-    const { data } = await supabase.from('tasks').insert({
-      property_id: propertyId, name, position: tasksRef.current.length - 1, created_by: user.id
-    }).select().single();
-    if (data) {
-      // Replace temp with real
-      setTasks(prev => prev.map(t => t.id === tempId ? { ...newTask, ...data, subtasks:[] } : t));
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'created', entityType: 'task', entityId: data.id, entityName: name });
+  const me = () => {
+    if (user?.id && profile?.full_name) {
+      rememberName(user.id, profile.full_name);
+      setNames(n => (n[user.id] ? n : { ...n, [user.id]: profile.full_name }));
     }
   };
 
-  const updateTask = async (taskId, updates) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+  const allMaterials = () => tasksRef.current.flatMap(t => (t.subtasks || []).flatMap(s => s.materials || []));
+  const mapMaterials = fn => setTasks(prev => prev.map(t => ({
+    ...t, subtasks: (t.subtasks || []).map(s => ({ ...s, materials: (s.materials || []).map(fn) })),
+  })));
+
+  // ── Tasks ─────────────────────────────────────────────────────
+  const addTask = async (name) => {
+    const id = tempId();
+    const position = tasksRef.current.reduce((m, t) => Math.max(m, t.position ?? 0), -1) + 1;
+    const draft = { id, name, position, priority: 'medium', notes: '', due_date: null, assigned_to: null, subtasks: [] };
+    setTasks(prev => [...prev, draft]);
+    const { data, error } = await supabase.from('tasks')
+      .insert({ property_id: propertyId, name, position, created_by: user.id }).select().single();
+    if (error || !data) { setTasks(prev => prev.filter(t => t.id !== id)); return { error }; }
+    setTasks(prev => prev.map(t => (t.id === id ? { ...draft, ...data, subtasks: [] } : t)));
+    log('created', 'task', data.id, name);
+    return { data };
+  };
+
+  const updateTask = async (taskId, updates, names_ = null) => {
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, ...updates } : t)));
+    if (names_) setNames(n => ({ ...n, ...names_ }));
     await supabase.from('tasks').update(updates).eq('id', taskId);
     if (updates.assigned_to !== undefined) {
       const task = tasksRef.current.find(t => t.id === taskId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'assigned', entityType: 'task', entityId: taskId, entityName: task?.name });
+      log('assigned', 'task', taskId, task?.name);
     }
   };
 
@@ -55,40 +79,35 @@ export function useTasks(propertyId) {
     const task = tasksRef.current.find(t => t.id === taskId);
     setTasks(prev => prev.filter(t => t.id !== taskId));
     await supabase.from('tasks').delete().eq('id', taskId);
-    await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'deleted', entityType: 'task', entityId: taskId, entityName: task?.name });
+    log('deleted', 'task', taskId, task?.name);
   };
 
-  const moveTask = async (taskId, dir) => {
-    const current = tasksRef.current;
-    const idx = current.findIndex(t => t.id === taskId);
-    const j = idx + dir;
-    if (j < 0 || j >= current.length) return;
-    const newTasks = [...current];
-    [newTasks[idx], newTasks[j]] = [newTasks[j], newTasks[idx]];
-    setTasks(newTasks);
-    await Promise.all([
-      supabase.from('tasks').update({ position: j }).eq('id', current[idx].id),
-      supabase.from('tasks').update({ position: idx }).eq('id', current[j].id),
-    ]);
+  // Swap two tasks, then renumber positions 0..n-1 so ordering stays stable.
+  const swapTasks = async (aId, bId) => {
+    const list = [...tasksRef.current];
+    const i = list.findIndex(t => t.id === aId), j = list.findIndex(t => t.id === bId);
+    if (i < 0 || j < 0) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    const renumbered = list.map((t, k) => ({ ...t, position: k }));
+    setTasks(renumbered);
+    const changed = renumbered.filter(t => tasksRef.current.find(o => o.id === t.id)?.position !== t.position);
+    await Promise.all(changed.map(t => supabase.from('tasks').update({ position: t.position }).eq('id', t.id)));
   };
 
   // ── Subtasks ──────────────────────────────────────────────────
   const addSubtask = async (taskId, name) => {
-    const tempId = genId();
-    const newSub = { id:tempId, task_id:taskId, name, completed:false, completion_note:null, completed_by:null, completed_at:null, materials:[] };
-    // Optimistic — add subtask without collapsing
-    setTasks(prev => prev.map(t => t.id !== taskId ? t : {
-      ...t, subtasks: [...(t.subtasks||[]), newSub]
-    }));
+    const id = tempId();
     const task = tasksRef.current.find(t => t.id === taskId);
-    const { data } = await supabase.from('subtasks').insert({
-      task_id: taskId, name, position: (task?.subtasks||[]).length
-    }).select().single();
-    if (data) {
-      setTasks(prev => prev.map(t => t.id !== taskId ? t : {
-        ...t, subtasks: (t.subtasks||[]).map(s => s.id === tempId ? { ...newSub, ...data, materials:[] } : s)
-      }));
+    const position = (task?.subtasks || []).length;
+    const draft = { id, task_id: taskId, name, position, completed: false, completion_note: null, completed_by: null, completed_at: null, materials: [] };
+    setTasks(prev => prev.map(t => (t.id !== taskId ? t : { ...t, subtasks: [...(t.subtasks || []), draft] })));
+    const { data, error } = await supabase.from('subtasks').insert({ task_id: taskId, name, position }).select().single();
+    if (error || !data) {
+      setTasks(prev => prev.map(t => (t.id !== taskId ? t : { ...t, subtasks: t.subtasks.filter(s => s.id !== id) })));
+      return { error };
     }
+    setTasks(prev => prev.map(t => (t.id !== taskId ? t : { ...t, subtasks: t.subtasks.map(s => (s.id === id ? { ...draft, ...data, materials: [] } : s)) })));
+    return { data };
   };
 
   const updateSubtask = async (subtaskId, updates) => {
@@ -96,111 +115,71 @@ export function useTasks(propertyId) {
     if ('completed' in updates) {
       patch.completed_by = updates.completed ? user.id : null;
       patch.completed_at = updates.completed ? new Date().toISOString() : null;
+      if (!updates.completed) patch.completion_note = null;
+      me();
     }
-    setTasks(prev => prev.map(t => ({
-      ...t, subtasks: (t.subtasks||[]).map(s => s.id !== subtaskId ? s : { ...s, ...patch })
-    })));
+    setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).map(s => (s.id !== subtaskId ? s : { ...s, ...patch })) })));
     await supabase.from('subtasks').update(patch).eq('id', subtaskId);
     if ('completed' in updates) {
-      const sub = tasksRef.current.flatMap(t => t.subtasks||[]).find(s => s.id === subtaskId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: updates.completed ? 'completed' : 'reopened', entityType: 'subtask', entityId: subtaskId, entityName: sub?.name, newValue: updates.completion_note ? { note: updates.completion_note } : null });
+      const sub = tasksRef.current.flatMap(t => t.subtasks || []).find(s => s.id === subtaskId);
+      log(updates.completed ? 'completed' : 'reopened', 'subtask', subtaskId, sub?.name,
+        updates.completion_note ? { note: updates.completion_note } : null);
     }
   };
 
   const deleteSubtask = async (subtaskId) => {
-    setTasks(prev => prev.map(t => ({
-      ...t, subtasks: (t.subtasks||[]).filter(s => s.id !== subtaskId)
-    })));
+    setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).filter(s => s.id !== subtaskId) })));
     await supabase.from('subtasks').delete().eq('id', subtaskId);
   };
 
   // ── Materials ─────────────────────────────────────────────────
-  const MATERIAL_STATUSES = ['needed', 'ordered', 'delivered', 'used'];
-
   const addMaterial = async (subtaskId, mat) => {
-    const tempId = genId();
-    const newMat = { id:tempId, subtask_id:subtaskId, name:mat.name, qty:mat.qty||null, unit:mat.unit||null, status:'needed' };
-    // Optimistic — add material without any collapse
-    setTasks(prev => prev.map(t => ({
-      ...t, subtasks: (t.subtasks||[]).map(s => s.id !== subtaskId ? s : {
-        ...s, materials: [...(s.materials||[]), newMat]
-      })
-    })));
-    const { data } = await supabase.from('materials').insert({
-      subtask_id: subtaskId, property_id: propertyId,
-      name: mat.name, qty: mat.qty || null, unit: mat.unit || null,
-      status: 'needed', created_by: user.id
+    const id = tempId();
+    const draft = { id, subtask_id: subtaskId, property_id: propertyId, name: mat.name, qty: mat.qty || null, unit: mat.unit || null, status: 'needed' };
+    setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).map(s => (s.id !== subtaskId ? s : { ...s, materials: [...(s.materials || []), draft] })) })));
+    const { data, error } = await supabase.from('materials').insert({
+      subtask_id: subtaskId, property_id: propertyId, name: mat.name, qty: mat.qty || null, unit: mat.unit || null,
+      status: 'needed', created_by: user.id,
     }).select().single();
-    if (data) {
-      setTasks(prev => prev.map(t => ({
-        ...t, subtasks: (t.subtasks||[]).map(s => s.id !== subtaskId ? s : {
-          ...s, materials: (s.materials||[]).map(m => m.id === tempId ? { ...newMat, ...data } : m)
-        })
-      })));
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'created', entityType: 'material', entityName: mat.name });
+    if (error || !data) {
+      setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).map(s => ({ ...s, materials: (s.materials || []).filter(m => m.id !== id) })) })));
+      return { error };
     }
+    mapMaterials(m => (m.id === id ? { ...draft, ...data } : m));
+    log('created', 'material', data.id, mat.name);
+    return { data };
   };
 
-  const updateMaterial = async (materialId, updates) => {
-    const patch = { ...updates };
-    if (updates.status && updates.status !== 'needed') {
-      patch.acquired_by = user.id;
-      patch.acquired_at = new Date().toISOString();
-    }
-    setTasks(prev => prev.map(t => ({
-      ...t, subtasks: (t.subtasks||[]).map(s => ({
-        ...s, materials: (s.materials||[]).map(m => m.id !== materialId ? m : { ...m, ...patch })
-      }))
-    })));
+  // Set a material to any status. Moving back to "needed" clears who acquired it.
+  const setMaterialStatus = async (materialId, status) => {
+    if (!MATERIAL_STATUSES.includes(status)) return;
+    const patch = status === 'needed'
+      ? { status, acquired_by: null, acquired_at: null }
+      : { status, acquired_by: user.id, acquired_at: new Date().toISOString() };
+    if (status !== 'needed') me();
+    mapMaterials(m => (m.id === materialId ? { ...m, ...patch } : m));
     await supabase.from('materials').update(patch).eq('id', materialId);
-    if (updates.status && updates.status !== 'needed') {
-      const mat = tasksRef.current.flatMap(t => t.subtasks||[]).flatMap(s => s.materials||[]).find(m => m.id === materialId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: updates.status, entityType: 'material', entityId: materialId, entityName: mat?.name });
-    }
+    const mat = allMaterials().find(m => m.id === materialId);
+    log(status, 'material', materialId, mat?.name);
   };
 
   const advanceMaterialStatus = async (materialId) => {
-    const mat = tasksRef.current.flatMap(t => t.subtasks||[]).flatMap(s => s.materials||[]).find(m => m.id === materialId);
+    const mat = allMaterials().find(m => m.id === materialId);
     if (!mat) return;
-    const currentIdx = MATERIAL_STATUSES.indexOf(mat.status || 'needed');
-    const nextStatus = MATERIAL_STATUSES[Math.min(currentIdx + 1, MATERIAL_STATUSES.length - 1)];
-    await updateMaterial(materialId, { status: nextStatus });
-  };
-
-  // Set a material to any status directly (forward or backward). Used by the
-  // admin status picker. When moving back to 'needed', clear the acquired_*
-  // fields so the record doesn't keep a stale "acquired by" trail.
-  const setMaterialStatus = async (materialId, status) => {
-    if (!MATERIAL_STATUSES.includes(status)) return;
-    if (status === 'needed') {
-      // updateMaterial only sets acquired_* when status !== 'needed', so clear here.
-      setTasks(prev => prev.map(t => ({
-        ...t, subtasks: (t.subtasks||[]).map(s => ({
-          ...s, materials: (s.materials||[]).map(m => m.id !== materialId ? m : { ...m, status, acquired_by:null, acquired_at:null, acquired_profile:null })
-        }))
-      })));
-      await supabase.from('materials').update({ status, acquired_by:null, acquired_at:null }).eq('id', materialId);
-      const mat = tasksRef.current.flatMap(t => t.subtasks||[]).flatMap(s => s.materials||[]).find(m => m.id === materialId);
-      await logAction({ propertyId, userId: user.id, userName: profile?.full_name, action: 'needed', entityType: 'material', entityId: materialId, entityName: mat?.name });
-      return;
-    }
-    await updateMaterial(materialId, { status });
+    const i = MATERIAL_STATUSES.indexOf(mat.status || 'needed');
+    if (i >= MATERIAL_STATUSES.length - 1) return;
+    await setMaterialStatus(materialId, MATERIAL_STATUSES[i + 1]);
   };
 
   const deleteMaterial = async (materialId) => {
-    setTasks(prev => prev.map(t => ({
-      ...t, subtasks: (t.subtasks||[]).map(s => ({
-        ...s, materials: (s.materials||[]).filter(m => m.id !== materialId)
-      }))
-    })));
+    setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).map(s => ({ ...s, materials: (s.materials || []).filter(m => m.id !== materialId) })) })));
     await supabase.from('materials').delete().eq('id', materialId);
   };
 
   return {
-    tasks, loading, fetchTasks,
-    addTask, updateTask, deleteTask, moveTask,
+    tasks, names, loading, fetchTasks,
+    addTask, updateTask, deleteTask, swapTasks,
     addSubtask, updateSubtask, deleteSubtask,
-    addMaterial, updateMaterial, deleteMaterial, advanceMaterialStatus, setMaterialStatus,
-    MATERIAL_STATUSES,
+    addMaterial, deleteMaterial, advanceMaterialStatus, setMaterialStatus,
   };
 }

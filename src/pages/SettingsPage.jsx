@@ -1,647 +1,454 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useUsers, usePropertyUsers } from '../hooks/useUsers';
+import { useUsers } from '../hooks/useUsers';
 import { useProperties } from '../hooks/useProperties';
-import DataExportTab from './DataExportTab';
 import { supabase } from '../lib/supabase';
 import { T, S } from '../lib/theme';
+import { fmtDate } from '../lib/format';
+import { MAT_STATUS } from '../lib/status';
+import { ROLES, OVERRIDABLE_CAPABILITIES, roleHasByDefault } from '../lib/permissions';
+import { Icon, PageHeader, Page, PropertyBadge, Chip, Field, Sheet, ConfirmSheet, SectionLabel, Loading, Empty, Toast } from '../components/ui';
 
-const ROLES = ['admin', 'manager', 'technician', 'viewer'];
-const ROLE_COLORS = { admin: T.red, manager: T.warn, technician: T.accent, viewer: T.textDim };
+const DataExportTab = lazy(() => import('./DataExportTab'));
+const PROPERTY_ROLES = ['manager', 'technician', 'viewer'];
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const ROLE_TONE = { admin: 'primary', manager: 'info', technician: 'ok', viewer: 'neutral' };
 
-const Ic = {
-  back:   () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  person: () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="M2 18c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
-  key:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="8" cy="10" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="M12 10h6M16 8v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
-  audit:  () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" strokeWidth="1.6"/><path d="M7 7h6M7 11h6M7 15h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
-  cog:    () => <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
-  plus:   () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
-  trash:  () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 3h11M4 3V2h5v1M2 3l1 8h7l1-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-};
+const Card = ({ title, children, style }) => (
+  <section style={{ ...S.card, padding: '16px 16px 18px', marginBottom: 14, ...style }}>
+    {title && <h2 style={{ ...S.sectionLabel, color: T.text, fontSize: 16, marginBottom: 14 }}>{title}</h2>}
+    {children}
+  </section>
+);
+const Msg = ({ m }) => m ? (
+  <div role="status" style={{ fontSize: 14, marginTop: 12, padding: '10px 12px', borderRadius: 8,
+    color: m.error ? T.red : T.ok, background: m.error ? T.redFade : T.okFade }}>{m.text}</div>
+) : null;
 
-function RoleBadge({ role }) {
-  return (
-    <span style={{ fontSize:'10px', fontFamily:T.mono, color:ROLE_COLORS[role]||T.textDim, background:`${ROLE_COLORS[role]||T.textDim}18`, borderRadius:'4px', padding:'2px 7px', textTransform:'capitalize' }}>
-      {role}
-    </span>
-  );
-}
-
-// ── Profile Tab ───────────────────────────────────────────────────
+// ── Profile ─────────────────────────────────────────────────────────
 function ProfileTab() {
   const { profile, refetchProfile, signOutEverywhere } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
-  const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-  const [profileMsg, setProfileMsg] = useState('');
-  const [pwMsg, setPwMsg] = useState('');
+  const [profileMsg, setProfileMsg] = useState(null);
+  const [pwMsg, setPwMsg] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [signingOutAll, setSigningOutAll] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
 
   const saveProfile = async () => {
+    if (!fullName.trim()) { setProfileMsg({ error: true, text: 'Name is required.' }); return; }
     setSaving(true);
     const { error } = await supabase.from('profiles').update({ full_name: fullName.trim(), phone: phone.trim() || null }).eq('id', profile.id);
-    if (error) setProfileMsg('Error: ' + error.message);
-    else { setProfileMsg('Profile updated ✓'); await refetchProfile(); }
+    setProfileMsg(error ? { error: true, text: error.message } : { text: 'Profile saved.' });
+    if (!error) await refetchProfile();
     setSaving(false);
-    setTimeout(() => setProfileMsg(''), 3000);
   };
 
   const changePassword = async () => {
-    if (!newPw.trim()) { setPwMsg('Please enter a new password.'); return; }
-    if (newPw !== confirmPw) { setPwMsg('Passwords do not match.'); return; }
-    if (newPw.length < 6) { setPwMsg('Password must be at least 6 characters.'); return; }
+    if (newPw.length < 6) { setPwMsg({ error: true, text: 'Use at least 6 characters.' }); return; }
+    if (newPw !== confirmPw) { setPwMsg({ error: true, text: 'The passwords don’t match.' }); return; }
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPw });
-    if (error) setPwMsg('Error: ' + error.message);
-    else { setPwMsg('Password updated ✓'); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }
+    setPwMsg(error ? { error: true, text: error.message } : { text: 'Password updated.' });
+    if (!error) { setNewPw(''); setConfirmPw(''); }
     setSaving(false);
-    setTimeout(() => setPwMsg(''), 3000);
   };
 
   return (
     <div>
-      {/* Profile details */}
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'16px' }}>PROFILE DETAILS</div>
-        <div style={{ marginBottom:'12px' }}>
-          <div style={S.fieldLabel}>FULL NAME</div>
-          <input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" style={S.input}/>
-        </div>
-        <div style={{ marginBottom:'16px' }}>
-          <div style={S.fieldLabel}>PHONE (optional)</div>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+27 82 000 0000" style={S.input}/>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-          <button onClick={saveProfile} disabled={saving} style={{ ...S.btnPrimary, padding:'9px 20px', opacity:saving?0.7:1 }}>
-            {saving ? 'Saving…' : 'Save Profile'}
-          </button>
-          {profileMsg && <span style={{ fontSize:'13px', color:profileMsg.includes('Error')?T.red:T.accent, fontFamily:T.sans }}>{profileMsg}</span>}
-        </div>
-      </div>
+      <Card title="Your details">
+        <Field label="Full name" htmlFor="pf-name"><input id="pf-name" value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" style={S.input}/></Field>
+        <Field label="Phone (optional)" htmlFor="pf-phone"><input id="pf-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+27 82 000 0000" autoComplete="tel" style={S.input}/></Field>
+        <button onClick={saveProfile} disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.7 : 1 }}>Save details</button>
+        <Msg m={profileMsg}/>
+      </Card>
 
-      {/* Change password */}
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'16px' }}>CHANGE PASSWORD</div>
-        <div style={{ marginBottom:'12px' }}>
-          <div style={S.fieldLabel}>NEW PASSWORD</div>
-          <input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.input}/>
-        </div>
-        <div style={{ marginBottom:'16px' }}>
-          <div style={S.fieldLabel}>CONFIRM NEW PASSWORD</div>
-          <input type="password" value={confirmPw} onChange={e=>setConfirmPw(e.target.value)} placeholder="Repeat new password" style={S.input} onKeyDown={e=>e.key==='Enter'&&changePassword()}/>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-          <button onClick={changePassword} disabled={saving} style={{ ...S.btnPrimary, padding:'9px 20px', opacity:saving?0.7:1 }}>
-            {saving ? 'Updating…' : 'Update Password'}
-          </button>
-          {pwMsg && <span style={{ fontSize:'13px', color:pwMsg.includes('Error')?T.red:T.accent, fontFamily:T.sans }}>{pwMsg}</span>}
-        </div>
-      </div>
+      <Card title="Change password">
+        <Field label="New password" htmlFor="pf-pw"><input id="pf-pw" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="At least 6 characters" style={S.input}/></Field>
+        <Field label="Confirm new password" htmlFor="pf-pw2"><input id="pf-pw2" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && changePassword()} style={S.input}/></Field>
+        <button onClick={changePassword} disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.7 : 1 }}>Update password</button>
+        <Msg m={pwMsg}/>
+      </Card>
 
-      {/* Sessions & security */}
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px', marginTop:'16px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'12px' }}>SESSIONS &amp; SECURITY</div>
-        <div style={{ fontSize:'13px', color:T.textMid, fontFamily:T.sans, lineHeight:'1.6', marginBottom:'14px' }}>
-          If you've signed in on a shared or lost device, you can sign out of every device at once. You'll need to log in again here afterwards.
-        </div>
-        <button onClick={async()=>{ setSigningOutAll(true); await signOutEverywhere(); }} disabled={signingOutAll}
-          style={{ display:'inline-flex', alignItems:'center', gap:'7px', background:'none', border:`1px solid ${T.red}`, color:T.red, borderRadius:'8px', padding:'9px 16px', cursor:signingOutAll?'default':'pointer', fontSize:'13px', fontFamily:T.sans, fontWeight:'600', opacity:signingOutAll?0.7:1 }}
-          onMouseEnter={e=>{ if(!signingOutAll){ e.currentTarget.style.background=T.redFade; } }}
-          onMouseLeave={e=>{ e.currentTarget.style.background='none'; }}>
-          <Ic.key/> {signingOutAll ? 'Signing out…' : 'Sign out of all devices'}
-        </button>
-      </div>
+      <Card title="Sessions">
+        <p style={{ margin: '0 0 14px', fontSize: 15, color: T.textMid, lineHeight: 1.5 }}>
+          Signed in on a shared or lost device? Sign out everywhere. You'll need to sign in again here too.
+        </p>
+        <button onClick={() => setConfirmAll(true)} style={{ ...S.btnGhost, color: T.red, borderColor: T.redBorder }}><Icon name="logout" size={18}/> Sign out of all devices</button>
+      </Card>
+
+      <div style={{ ...S.meta, textAlign: 'center', padding: '4px 0 8px' }}>Property Tracker · React, Vite and Supabase</div>
+      {confirmAll && <ConfirmSheet title="Sign out of all devices?" body="Every device, including this one, will need to sign in again." confirmLabel="Sign out everywhere"
+        onConfirm={signOutEverywhere} onClose={() => setConfirmAll(false)}/>}
     </div>
   );
 }
 
-// ── Users Tab ─────────────────────────────────────────────────────
-// Capabilities an admin can override per-user (label + the key used by can()).
-const OVERRIDABLE_CAPABILITIES = [
-  { key:'edit_status_backward', label:'Edit material status backward', hint:'Change a material to any status, including reversing “Used”.' },
-  { key:'edit_priority',        label:'Edit task priority',            hint:'Set high / medium / low on tasks.' },
-  { key:'view_asset_register',  label:'View global asset register',    hint:'See assets across all properties they can access.' },
-  { key:'global_search',        label:'Global search',                 hint:'Search across all accessible properties.' },
-  { key:'view_shopping_list',   label:'Global shopping list',          hint:'See pending materials across accessible properties.' },
-  { key:'data_export',          label:'Data export',                   hint:'Download data as an Excel workbook.' },
-];
-const ROLE_DEFAULT_CAPS = {
-  edit_status_backward: ['admin'],
-  edit_priority:        ['admin','manager'],
-  view_asset_register:  ['admin'],
-  global_search:        ['admin'],
-  view_shopping_list:   ['admin'],
-  data_export:          ['admin'],
-};
+// ── Users ───────────────────────────────────────────────────────────
+// All property assignments in one query (previously one query per property per user).
+function useAllAssignments() {
+  const [rows, setRows] = useState([]);
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('property_users').select('property_id, user_id, role');
+    setRows(data || []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const find = (pid, uid) => rows.find(r => r.property_id === pid && r.user_id === uid);
+  const set = async (pid, uid, role) => {
+    const prev = rows;
+    setRows(r => [...r.filter(x => !(x.property_id === pid && x.user_id === uid)), ...(role ? [{ property_id: pid, user_id: uid, role }] : [])]);
+    const { error } = role
+      ? await supabase.from('property_users').upsert({ property_id: pid, user_id: uid, role }, { onConflict: 'property_id,user_id' })
+      : await supabase.from('property_users').delete().eq('property_id', pid).eq('user_id', uid);
+    if (error) setRows(prev);
+    return { error };
+  };
+  return { find, set };
+}
 
-function UsersTab({ properties }) {
-  const { users, loading, updateUser, deactivateUser, inviteUser, updateUserPermission, getUserPermissions } = useUsers();
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ email:'', fullName:'', role:'viewer', defaultPassword:'', assignments:{} });
-  const [inviteMsg, setInviteMsg] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [expandedUser, setExpandedUser] = useState(null);
+function CapabilityRow({ user, c, overrides, onChange }) {
+  const has = Object.prototype.hasOwnProperty.call(overrides, c.key);
+  const value = has ? (overrides[c.key] ? 'on' : 'off') : 'default';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${T.borderLight}` }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, color: T.text }}>{c.label}</div>
+        <div style={S.meta}>{c.hint}</div>
+      </div>
+      <select aria-label={c.label} value={value} onChange={e => onChange(c.key, e.target.value === 'default' ? null : e.target.value === 'on')}
+        style={{ ...S.input, width: 'auto', minWidth: 132, flexShrink: 0, color: value === 'default' ? T.textMid : value === 'on' ? T.ok : T.red, fontWeight: value === 'default' ? 400 : 600 }}>
+        <option value="default">Role default ({roleHasByDefault(user.role, c.key) ? 'on' : 'off'})</option>
+        <option value="on">Allowed</option>
+        <option value="off">Not allowed</option>
+      </select>
+    </div>
+  );
+}
 
-  const handleInvite = async () => {
-    if (!form.email.trim() || !form.fullName.trim()) { setInviteMsg('Email and name are required.'); return; }
-    if (form.defaultPassword.length < 6) { setInviteMsg('Default password must be at least 6 characters.'); return; }
-    setSaving(true); setInviteMsg('');
-    const assignments = Object.entries(form.assignments)
-      .filter(([,role]) => role)
-      .map(([property_id, role]) => ({ property_id, role }));
-    const { error } = await inviteUser({
-      email: form.email.trim(),
-      fullName: form.fullName.trim(),
-      role: form.role,
-      defaultPassword: form.defaultPassword,
-      assignments,
-    });
-    if (error) { setInviteMsg('Error: ' + error.message); setSaving(false); return; }
-    setInviteMsg('✓ User created. They’ll get an activation email and must set a new password on first login.');
-    setForm({ email:'', fullName:'', role:'viewer', defaultPassword:'', assignments:{} });
-    setSaving(false);
-    setTimeout(() => { setInviteMsg(''); setAdding(false); }, 5000);
+function UserSheet({ user, properties, assignments, api, onClose, onToast }) {
+  const [role, setRole] = useState(user.role);
+  const [overrides, setOverrides] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.getUserPermissions(user.id).then(m => { if (live) setOverrides(m); });
+    return () => { live = false; };
+  }, [user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changeRole = async r => {
+    setRole(r);
+    const { error } = await api.updateUser(user.id, { role: r });
+    if (error) { setRole(user.role); onToast(error.message, 'error'); }
+  };
+  const changeCap = async (key, granted) => {
+    await api.updateUserPermission(user.id, key, granted);
+    setOverrides(p => { const n = { ...p }; if (granted === null) delete n[key]; else n[key] = granted; return n; });
   };
 
-  const activeUsers = users.filter(u => u.active !== false);
-
-  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading users…</div>;
-
   return (
-    <div>
-      <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'14px' }}>
-        TEAM MEMBERS ({activeUsers.length})
+    <Sheet title={user.full_name || 'User'} onClose={onClose}>
+      <Field label="Overall role">
+        <select aria-label="Overall role" value={role} onChange={e => changeRole(e.target.value)} style={S.input}>
+          {ROLES.map(r => <option key={r} value={r}>{cap(r)}</option>)}
+        </select>
+      </Field>
+
+      <div style={S.fieldLabel}>Property access</div>
+      <div style={{ marginBottom: 16 }}>
+        {properties.map(p => {
+          const a = assignments.find(p.id, user.id);
+          return (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${T.borderLight}` }}>
+              <PropertyBadge property={p} size={32}/>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 15, color: T.text }}>{p.name}</span>
+              <select aria-label={`Access to ${p.name}`} value={a?.role || ''} onChange={e => assignments.set(p.id, user.id, e.target.value || null)}
+                style={{ ...S.input, width: 'auto', minWidth: 132, color: a ? T.text : T.textMid }}>
+                <option value="">No access</option>
+                {PROPERTY_ROLES.map(r => <option key={r} value={r}>{cap(r)}</option>)}
+              </select>
+            </div>
+          );
+        })}
       </div>
 
-      {activeUsers.map(u => (
-        <div key={u.id} style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'10px', marginBottom:'8px', overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', cursor:'pointer' }} onClick={() => setExpandedUser(expandedUser===u.id?null:u.id)}>
-            <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, display:'flex', alignItems:'center', justifyContent:'center', color:T.accent, fontWeight:'700', fontSize:'15px', fontFamily:T.sans, flexShrink:0 }}>
-              {u.full_name?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:'14px', fontWeight:'600', color:T.text, fontFamily:T.sans }}>{u.full_name}</div>
-              <div style={{ fontSize:'11px', color:T.textDim, fontFamily:T.mono, marginTop:'2px' }}>{u.phone || 'No phone'}</div>
-            </div>
-            <RoleBadge role={u.role}/>
-          </div>
+      {role !== 'admin' && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={S.fieldLabel}>Extra permissions</div>
+          {overrides === null ? <div style={S.meta}>Loading…</div>
+            : OVERRIDABLE_CAPABILITIES.map(c => <CapabilityRow key={c.key} user={{ ...user, role }} c={c} overrides={overrides} onChange={changeCap}/>)}
+        </div>
+      )}
 
-          {expandedUser === u.id && (
-            <div style={{ padding:'0 16px 14px', borderTop:`1px solid ${T.border}`, paddingTop:'12px' }}>
-              <div style={{ marginBottom:'12px' }}>
-                <div style={S.fieldLabel}>GLOBAL ROLE</div>
-                <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                  {ROLES.map(r => (
-                    <button key={r} onClick={() => updateUser(u.id, { role: r })}
-                      style={{ background:u.role===r?(ROLE_COLORS[r]||T.primary):T.controlBg, border:'none', color:u.role===r?'#000':T.textMid, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:u.role===r?'700':'400', textTransform:'capitalize' }}>
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      <button onClick={() => setConfirming(true)} style={{ ...S.btnGhost, width: '100%', color: T.red, borderColor: T.redBorder }}>Deactivate user</button>
+      {confirming && <ConfirmSheet title={`Deactivate ${user.full_name}?`} confirmLabel="Deactivate"
+        body="They'll be signed out and can't sign in until you reactivate them. Their history stays."
+        onConfirm={async () => { const { error } = await api.deactivateUser(user.id); if (error) onToast(error.message, 'error'); else { onToast(`${user.full_name} deactivated`); onClose(); } }}
+        onClose={() => setConfirming(false)}/>}
+    </Sheet>
+  );
+}
 
-              <div style={{ marginBottom:'12px' }}>
-                <div style={S.fieldLabel}>PROPERTY ACCESS &amp; ROLE</div>
-                {properties.map(prop => (
-                  <PropertyAccessRow key={prop.id} property={prop} userId={u.id}/>
-                ))}
-              </div>
-
-              {u.role !== 'admin' && (
-                <CapabilityToggles user={u} getUserPermissions={getUserPermissions} updateUserPermission={updateUserPermission}/>
-              )}
-
-              <button onClick={() => deactivateUser(u.id)}
-                style={{ display:'inline-flex', alignItems:'center', gap:'6px', background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans, marginTop:'4px' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor=T.red}
-                onMouseLeave={e => e.currentTarget.style.borderColor=T.border}
-              >
-                <Ic.trash/> Deactivate User
-              </button>
-            </div>
-          )}
+function InviteSheet({ properties, api, onClose, onToast }) {
+  const [form, setForm] = useState({ email: '', fullName: '', role: 'viewer', defaultPassword: '', assignments: {} });
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (!form.email.trim() || !form.fullName.trim()) { setErr('Name and email are required.'); return; }
+    if (form.defaultPassword.length < 6) { setErr('The temporary password needs at least 6 characters.'); return; }
+    setSaving(true); setErr('');
+    const assignments = Object.entries(form.assignments).filter(([, r]) => r).map(([property_id, role]) => ({ property_id, role }));
+    const { error } = await api.inviteUser({ email: form.email.trim(), fullName: form.fullName.trim(), role: form.role, defaultPassword: form.defaultPassword, assignments });
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onToast(`${form.fullName.trim()} added. They set their own password at first sign-in.`);
+    onClose();
+  };
+  return (
+    <Sheet title="Invite user" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button>
+        <button onClick={submit} disabled={saving} style={{ ...S.btnPrimary, flex: 2, opacity: saving ? 0.7 : 1 }}>{saving ? 'Creating…' : 'Create and invite'}</button></>}>
+      <Field label="Full name" htmlFor="iv-name"><input id="iv-name" value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} style={S.input}/></Field>
+      <Field label="Email" htmlFor="iv-email"><input id="iv-email" type="email" inputMode="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={S.input}/></Field>
+      <Field label="Temporary password" htmlFor="iv-pw" hint="They must change it at first sign-in.">
+        <input id="iv-pw" value={form.defaultPassword} onChange={e => setForm(p => ({ ...p, defaultPassword: e.target.value }))} autoComplete="off" style={S.input}/>
+      </Field>
+      <Field label="Overall role" htmlFor="iv-role">
+        <select id="iv-role" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} style={S.input}>
+          {ROLES.map(r => <option key={r} value={r}>{cap(r)}</option>)}
+        </select>
+      </Field>
+      <div style={S.fieldLabel}>Property access</div>
+      {properties.map(p => (
+        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${T.borderLight}` }}>
+          <PropertyBadge property={p} size={32}/>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 15, color: T.text }}>{p.name}</span>
+          <select aria-label={`Access to ${p.name}`} value={form.assignments[p.id] || ''} onChange={e => setForm(f => ({ ...f, assignments: { ...f.assignments, [p.id]: e.target.value } }))}
+            style={{ ...S.input, width: 'auto', minWidth: 132 }}>
+            <option value="">No access</option>
+            {PROPERTY_ROLES.map(r => <option key={r} value={r}>{cap(r)}</option>)}
+          </select>
         </div>
       ))}
-
-      {/* Invite new user */}
-      {!adding ? (
-        <button onClick={()=>setAdding(true)} style={{ display:'flex', alignItems:'center', gap:'8px', width:'100%', justifyContent:'center', background:'none', border:`2px dashed ${T.primaryBorder}`, color:T.accent, borderRadius:'10px', padding:'14px', cursor:'pointer', fontSize:'14px', fontFamily:T.sans, fontWeight:'600', marginTop:'12px' }}
-          onMouseEnter={e=>e.currentTarget.style.background=T.primaryFade} onMouseLeave={e=>e.currentTarget.style.background='none'}>
-          <Ic.plus/> Invite New User
-        </button>
-      ) : (
-        <div style={{ background:T.surface2, border:`1px solid ${T.primaryBorder}`, borderRadius:'10px', padding:'18px', marginTop:'12px' }}>
-          <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'14px' }}>INVITE NEW USER</div>
-
-          <div style={{ marginBottom:'12px' }}>
-            <div style={S.fieldLabel}>FULL NAME *</div>
-            <input value={form.fullName} onChange={e=>setForm(p=>({...p,fullName:e.target.value}))} placeholder="e.g. Jane Smith" style={S.input}/>
-          </div>
-          <div style={{ marginBottom:'12px' }}>
-            <div style={S.fieldLabel}>EMAIL *</div>
-            <input value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="jane@example.com" style={S.input}/>
-          </div>
-          <div style={{ marginBottom:'12px' }}>
-            <div style={S.fieldLabel}>TEMPORARY PASSWORD *</div>
-            <input value={form.defaultPassword} onChange={e=>setForm(p=>({...p,defaultPassword:e.target.value}))} placeholder="Min. 6 chars — they’ll reset on first login" style={S.input}/>
-          </div>
-
-          <div style={{ marginBottom:'12px' }}>
-            <div style={S.fieldLabel}>GLOBAL ROLE</div>
-            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-              {ROLES.map(r => (
-                <button key={r} onClick={()=>setForm(p=>({...p,role:r}))}
-                  style={{ background:form.role===r?(ROLE_COLORS[r]||T.primary):T.controlBg, border:'none', color:form.role===r?'#000':T.textMid, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:form.role===r?'700':'400', textTransform:'capitalize' }}>
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ marginBottom:'16px' }}>
-            <div style={S.fieldLabel}>PROPERTY ACCESS (pick a role per property)</div>
-            {properties.map(prop => {
-              const sel = form.assignments[prop.id] || '';
-              return (
-                <div key={prop.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
-                  <span style={{ fontSize:'16px' }}>{prop.icon}</span>
-                  <span style={{ flex:1, fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{prop.name}</span>
-                  <div style={{ display:'flex', gap:'4px' }}>
-                    {['', 'viewer','technician','manager'].map(r => (
-                      <button key={r||'none'} onClick={()=>setForm(p=>({...p,assignments:{...p.assignments,[prop.id]:r}}))}
-                        style={{ background:sel===r?T.primary:T.controlBg, border:'none', color:sel===r?'#fff':T.textDim, borderRadius:'4px', padding:'3px 8px', cursor:'pointer', fontSize:'10px', fontFamily:T.mono, textTransform:'capitalize' }}>
-                        {r||'none'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {inviteMsg && (
-            <div style={{ fontSize:'13px', fontFamily:T.sans, marginBottom:'12px', padding:'10px 14px', borderRadius:'8px', lineHeight:'1.5',
-              color: inviteMsg.includes('Error')?T.red:T.accent,
-              background: inviteMsg.includes('Error')?T.redFade:T.primaryFade,
-              border:`1px solid ${inviteMsg.includes('Error')?`${T.red}30`:T.primaryBorder}` }}>
-              {inviteMsg}
-            </div>
-          )}
-
-          <div style={{ display:'flex', gap:'8px' }}>
-            <button onClick={()=>{ setAdding(false); setInviteMsg(''); }} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-            <button onClick={handleInvite} disabled={saving} style={{ ...S.btnPrimary, flex:2, opacity:saving?0.7:1 }}>
-              {saving ? 'Creating…' : 'Create & Invite'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      {err && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14, marginTop: 12 }}>{err}</div>}
+    </Sheet>
   );
 }
 
-// ── Capability override toggles (inside user expand) ──────────────
-function CapabilityToggles({ user, getUserPermissions, updateUserPermission }) {
-  const [overrides, setOverrides] = useState(null); // { cap: bool }
+function UsersTab({ properties }) {
+  const api = useUsers();
+  const assignments = useAllAssignments();
+  const [openId, setOpenId] = useState(null);
+  const [inviting, setInviting] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+  const [toast, setToast] = useState(null);
+  const onToast = (message, tone) => setToast({ message, tone });
 
-  useEffect(() => {
-    let active = true;
-    getUserPermissions(user.id).then(map => { if (active) setOverrides(map); });
-    return () => { active = false; };
-  }, [user.id]);
+  if (api.loading) return <Loading label="Loading users…"/>;
+  const active = api.users.filter(u => u.active !== false);
+  const inactive = api.users.filter(u => u.active === false);
+  const open = api.users.find(u => u.id === openId);
 
-  const roleHasByDefault = (cap) => (ROLE_DEFAULT_CAPS[cap] || []).includes(user.role);
-
-  const cycle = async (cap) => {
-    // Tri-state: default → granted → denied → default
-    const cur = overrides && Object.prototype.hasOwnProperty.call(overrides, cap) ? overrides[cap] : null;
-    let next;
-    if (cur === null) next = true;
-    else if (cur === true) next = false;
-    else next = null;
-    await updateUserPermission(user.id, cap, next);
-    setOverrides(prev => {
-      const copy = { ...(prev||{}) };
-      if (next === null) delete copy[cap]; else copy[cap] = next;
-      return copy;
-    });
+  const avatar = (u, dim) => (
+    <span style={{ width: 36, height: 36, borderRadius: 18, background: dim ? T.controlBg : T.primaryFade, color: dim ? T.textMid : T.primary, fontWeight: 700, fontSize: 15,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{u.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
+  );
+  const rowStyle = i => ({ width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 60, padding: '8px 14px', boxSizing: 'border-box',
+    background: 'none', border: 'none', borderTop: i ? `1px solid ${T.borderLight}` : 'none', textAlign: 'left', fontFamily: T.sans });
+  const reactivate = async u => {
+    const { error } = await api.updateUser(u.id, { active: true });
+    onToast(error ? error.message : `${u.full_name} reactivated`, error ? 'error' : undefined);
   };
-
-  const stateLabel = (cap) => {
-    const has = overrides && Object.prototype.hasOwnProperty.call(overrides, cap);
-    if (!has) return { text:`Default (${roleHasByDefault(cap)?'on':'off'})`, color:T.textDim, bg:T.controlBg };
-    return overrides[cap]
-      ? { text:'Granted', color:T.accent, bg:T.accentFade }
-      : { text:'Denied',  color:T.red,    bg:T.redFade };
-  };
-
-  return (
-    <div style={{ marginBottom:'12px' }}>
-      <div style={S.fieldLabel}>CAPABILITY OVERRIDES</div>
-      <div style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.sans, marginBottom:'8px', lineHeight:'1.5' }}>
-        Tap to cycle: Default → Granted → Denied. Overrides win over the role default.
+  const row = (u, i) => (
+    <button key={u.id} onClick={() => setOpenId(u.id)} style={{ ...rowStyle(i), cursor: 'pointer' }}>
+      {avatar(u, false)}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{u.full_name}</div>
+        <div style={S.meta}>{u.phone || 'No phone'}</div>
       </div>
-      {overrides === null ? (
-        <div style={{ fontSize:'12px', color:T.textDim, fontFamily:T.mono }}>Loading…</div>
-      ) : OVERRIDABLE_CAPABILITIES.map(c => {
-        const st = stateLabel(c.key);
-        return (
-          <div key={c.key} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{c.label}</div>
-              <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.sans, marginTop:'1px' }}>{c.hint}</div>
-            </div>
-            <button onClick={()=>cycle(c.key)} style={{ flexShrink:0, background:st.bg, border:`1px solid ${st.color}40`, color:st.color, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.mono, whiteSpace:'nowrap' }}>
-              {st.text}
-            </button>
-          </div>
-        );
-      })}
+      <Chip tone={ROLE_TONE[u.role]}>{cap(u.role)}</Chip>
+      <Icon name="chevronR" size={18} color={T.textDim}/>
+    </button>
+  );
+  const inactiveRow = (u, i) => (
+    <div key={u.id} style={rowStyle(i)}>
+      {avatar(u, true)}
+      <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: T.textMid }}>{u.full_name}</div>
+      <button onClick={() => reactivate(u)} style={{ ...S.btnOutline, height: 36 }}>Reactivate</button>
     </div>
   );
-}
-
-
-// ── Property Access Row (inside user expand) ──────────────────────
-function PropertyAccessRow({ property, userId }) {
-  const { assignments, assignUser, removeUser, updateRole } = usePropertyUsers(property.id);
-  const assignment = assignments.find(a => a.user_id === userId);
-  const hasAccess = !!assignment;
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:T.controlBgFaint, borderRadius:'7px', marginBottom:'4px' }}>
-      <span style={{ fontSize:'16px' }}>{property.icon}</span>
-      <span style={{ flex:1, fontSize:'13px', color:T.textMid, fontFamily:T.sans }}>{property.name}</span>
-      {hasAccess ? (
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <select value={assignment.role} onChange={e=>updateRole(userId,e.target.value)} style={{ background:T.controlBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:'5px', padding:'4px 8px', fontSize:'11px', fontFamily:T.mono, cursor:'pointer' }}>
-            {['manager','technician','viewer'].map(r=><option key={r} value={r}>{r}</option>)}
-          </select>
-          <button onClick={()=>removeUser(userId)} style={{ background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'5px', padding:'4px 8px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}
-            onMouseEnter={e=>e.currentTarget.style.borderColor=T.red} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-            Remove
+    <div>
+      <SectionLabel style={{ marginBottom: 8 }}>Team ({active.length})</SectionLabel>
+      <div style={{ ...S.card, overflow: 'hidden', marginBottom: 12 }}>{active.map(row)}</div>
+      <button onClick={() => setInviting(true)} style={S.btnDashed}><Icon name="plus" size={18}/> Invite user</button>
+
+      {inactive.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <button onClick={() => setShowInactive(v => !v)} style={{ ...S.btnGhost, border: 'none', background: 'none', padding: 0, color: T.primary }}>
+            <Icon name={showInactive ? 'chevronU' : 'chevronD'} size={18}/> Deactivated ({inactive.length})
           </button>
+          {showInactive && <div style={{ ...S.card, overflow: 'hidden', marginTop: 8 }}>{inactive.map(inactiveRow)}</div>}
         </div>
-      ) : (
-        <button onClick={()=>assignUser(userId,'viewer')} style={{ background:'none', border:`1px solid ${T.primaryBorder}`, color:T.accent, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>
-          + Assign
-        </button>
       )}
+
+      {open && <UserSheet user={open} properties={properties} assignments={assignments} api={api} onClose={() => setOpenId(null)} onToast={onToast}/>}
+      {inviting && <InviteSheet properties={properties} api={api} onClose={() => setInviting(false)} onToast={onToast}/>}
+      {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)}/>}
     </div>
   );
 }
 
-// ── Audit Tab ─────────────────────────────────────────────────────
+// ── Activity (audit log) ────────────────────────────────────────────
+const ENTITY_LABEL = { task: 'task', subtask: 'subtask', material: 'material', service: 'service', asset: 'asset', livestock: 'animal', property: 'property', room: 'room', user: 'user' };
 
-// Human-readable entity labels (singular, lowercase — sentence builder capitalises where needed)
-const ENTITY_LABEL = {
-  task:'task', subtask:'subtask', material:'material', service:'service',
-  asset:'asset', livestock:'animal', property:'property', room:'room', user:'user',
-};
-const MAT_STATUS_LABEL = { needed:'Needed', ordered:'Ordered', delivered:'Delivered', used:'Used' };
-
-// Turn a structured audit row into a natural sentence.
-// Returns { verb, sentence } — verb is the coloured action word, sentence is the rest.
 function describeLog(log, propsById) {
-  const who = log.user_name || 'Someone';
   const ent = ENTITY_LABEL[log.entity_type] || log.entity_type || 'item';
-  const name = log.entity_name ? `"${log.entity_name}"` : `a ${ent}`;
+  const name = log.entity_name ? `“${log.entity_name}”` : `a ${ent}`;
   const nv = log.new_value || {};
   const a = log.action;
-
-  // Material status changes are stored with the status as the action verb.
-  if (log.entity_type === 'material' && MAT_STATUS_LABEL[a]) {
-    return { verb:'changed', sentence:`material ${name} to ${MAT_STATUS_LABEL[a]}` };
-  }
-
+  if (log.entity_type === 'material' && MAT_STATUS[a]) return { verb: 'marked', rest: `material ${name} ${MAT_STATUS[a].label.toLowerCase()}` };
   switch (a) {
-    case 'created':   return { verb:'added',     sentence:`a new ${ent}, ${name}` };
-    case 'deleted':   return { verb:'deleted',   sentence:`${ent} ${name}` };
-    case 'updated':   return { verb:'updated',   sentence:`${ent} ${name}` };
-    case 'assigned':  return { verb:'assigned',  sentence:`${ent} ${name}` };
-    case 'completed': return { verb:'completed', sentence:`${ent} ${name}${nv.note?` — “${nv.note}”`:''}` };
-    case 'reopened':  return { verb:'reopened',  sentence:`${ent} ${name}` };
-    case 'acquired':  return { verb:'acquired',  sentence:`material ${name}` };
-    case 'archived':  return { verb:'archived',  sentence:`${ent} ${name}` };
-    case 'logged': {
-      const co = nv.company ? ` (by ${nv.company})` : '';
-      const dt = nv.doneDate ? ` on ${nv.doneDate}` : '';
-      return { verb:'logged', sentence:`a completion for service ${name}${co}${dt}` };
-    }
+    case 'created':   return { verb: 'added', rest: `${ent} ${name}` };
+    case 'deleted':   return { verb: 'deleted', rest: `${ent} ${name}` };
+    case 'updated':   return { verb: 'updated', rest: `${ent} ${name}` };
+    case 'assigned':  return { verb: 'assigned', rest: `${ent} ${name}` };
+    case 'completed': return { verb: 'completed', rest: `${ent} ${name}${nv.note ? ` — “${nv.note}”` : ''}` };
+    case 'reopened':  return { verb: 'reopened', rest: `${ent} ${name}` };
+    case 'archived':  return { verb: 'archived', rest: `${ent} ${name}` };
+    case 'scheduled': return { verb: 'scheduled', rest: `${ent} ${name}${nv.next_due ? ` — next due ${fmtDate(nv.next_due)}` : ''}` };
+    case 'logged':    return { verb: 'logged', rest: `${ent} ${name} as done${nv.doneDate ? ` on ${fmtDate(nv.doneDate)}` : ''}${nv.company ? ` (${nv.company})` : ''}` };
     case 'moved': {
-      const to = nv.toPropertyId && propsById[nv.toPropertyId] ? propsById[nv.toPropertyId].name : 'another property';
-      const reason = nv.reason ? ` — ${nv.reason}` : '';
-      return { verb:'moved', sentence:`${ent} ${name} to ${to}${reason}` };
+      const to = propsById[nv.toPropertyId]?.name || 'another property';
+      return { verb: 'moved', rest: `${ent} ${name} to ${to}${nv.reason ? ` — ${nv.reason}` : ''}` };
     }
-    default:
-      return { verb:a||'changed', sentence:`${ent} ${name}` };
+    default: return { verb: a || 'changed', rest: `${ent} ${name}` };
   }
 }
+const VERB_COLOR = v => (['deleted', 'archived'].includes(v) ? T.red : ['completed', 'logged'].includes(v) ? T.ok : T.primary);
+const fmtWhen = d => (d ? new Date(d).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
-function AuditTab({ properties }) {
+function ActivityTab({ properties }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const propsById = Object.fromEntries((properties || []).map(p => [p.id, p]));
 
   useEffect(() => {
-    fetchLogs();
+    let live = true;
+    (async () => {
+      setLoading(true);
+      let q = supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+      if (filter !== 'all') q = q.eq('property_id', filter);
+      const { data } = await q;
+      if (live) { setLogs(data || []); setLoading(false); }
+    })();
+    return () => { live = false; };
   }, [filter]);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    let query = supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
-    if (filter !== 'all') query = query.eq('property_id', filter);
-    const { data } = await query;
-    setLogs(data || []);
-    setLoading(false);
-  };
-
-  const fmtDateTime = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-  const actionColor = v => v==='deleted'||v==='archived'?T.red
-    : v==='completed'||v==='acquired'||v==='logged'?T.accent
-    : v==='moved'||v==='assigned'?T.warn
-    : v==='changed'?T.primary
-    : T.textMid;
-  const propsById = Object.fromEntries((properties||[]).map(p=>[p.id,p]));
-
   return (
     <div>
-      <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-        <button onClick={()=>setFilter('all')} style={{ background:filter==='all'?T.primary:T.controlBg, border:'none', color:filter==='all'?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter==='all'?'700':'400' }}>All Properties</button>
-        {properties.map(p=>(
-          <button key={p.id} onClick={()=>setFilter(p.id)} style={{ background:filter===p.id?T.primary:T.controlBg, border:'none', color:filter===p.id?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, fontWeight:filter===p.id?'700':'400' }}>
-            {p.icon} {p.name}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading audit log…</div>
-      ) : logs.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'40px', color:T.textFaint, fontFamily:T.mono, fontSize:'13px' }}>No activity recorded yet</div>
-      ) : logs.map(log => {
-        const { verb, sentence } = describeLog(log, propsById);
-        const prop = propsById[log.property_id];
-        return (
-        <div key={log.id} style={{ display:'flex', gap:'12px', padding:'10px 14px', background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'8px', marginBottom:'6px' }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:'13px', color:T.text, fontFamily:T.sans, lineHeight:'1.5' }}>
-              <span style={{ fontWeight:'700' }}>{log.user_name||'Someone'}</span>
-              {' '}
-              <span style={{ color:actionColor(verb), fontWeight:'600' }}>{verb}</span>
-              {' '}
-              <span style={{ color:T.textMid }}>{sentence}</span>
-            </div>
-            <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginTop:'3px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-              <span>{fmtDateTime(log.created_at)}</span>
-              {prop && filter==='all' && <span>· {prop.icon} {prop.name}</span>}
-            </div>
-          </div>
+      <Field label="Property" htmlFor="act-filter">
+        <select id="act-filter" value={filter} onChange={e => setFilter(e.target.value)} style={S.input}>
+          <option value="all">All properties</option>
+          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </Field>
+      {loading ? <Loading label="Loading activity…"/> : logs.length === 0 ? <Empty>No activity recorded yet.</Empty> : (
+        <div style={{ ...S.card, overflow: 'hidden' }}>
+          {logs.map((log, i) => {
+            const { verb, rest } = describeLog(log, propsById);
+            const prop = propsById[log.property_id];
+            return (
+              <div key={log.id} style={{ padding: '10px 14px', borderTop: i ? `1px solid ${T.borderLight}` : 'none' }}>
+                <div style={{ fontSize: 15, lineHeight: 1.45, color: T.text }}>
+                  <strong>{log.user_name || 'Someone'}</strong> <span style={{ color: VERB_COLOR(verb), fontWeight: 600 }}>{verb}</span> <span style={{ color: T.textMid }}>{rest}</span>
+                </div>
+                <div style={S.meta}>{fmtWhen(log.created_at)}{prop && filter === 'all' ? ` · ${prop.name}` : ''}</div>
+              </div>
+            );
+          })}
         </div>
-      );})}
+      )}
     </div>
   );
 }
 
-// ── App Settings Tab ──────────────────────────────────────────────
-function AppSettingsTab() {
-  return (
-    <div>
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'16px' }}>COMPANY LOGO</div>
-        <div style={{ width:'80px', height:'80px', background:T.primaryFade, border:`2px dashed ${T.primaryBorder}`, borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px', fontSize:'28px' }}>
-          🏡
-        </div>
-        <div style={{ fontSize:'13px', color:T.textDim, fontFamily:T.sans, marginBottom:'12px' }}>
-          Logo upload coming soon. Your logo will appear on the login screen and header.
-        </div>
-        <button style={{ ...S.btnGhost, opacity:0.5, cursor:'not-allowed' }}>Upload Logo (coming soon)</button>
-      </div>
-
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', padding:'20px' }}>
-        <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'16px' }}>APP INFO</div>
-        {[
-          ['Version', 'Property Tracker v2'],
-          ['Hosted at', 'property-tracker-two-rho.vercel.app'],
-          ['Database', 'Supabase (West EU)'],
-          ['Built with', 'React + Vite + Supabase'],
-        ].map(([label, value]) => (
-          <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:`1px solid ${T.border}` }}>
-            <span style={{ fontSize:'12px', color:T.textDim, fontFamily:T.mono }}>{label}</span>
-            <span style={{ fontSize:'12px', color:T.textMid, fontFamily:T.sans }}>{value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Properties Tab (admin) — per-property branding/logo ───────────
-function PropertiesTab() {
+// ── Branding (property logos) ───────────────────────────────────────
+function BrandingTab() {
   const { properties, uploadPropertyLogo, removePropertyLogo } = useProperties();
   const [busyId, setBusyId] = useState(null);
-  const [msg, setMsg] = useState({});
+  const [toast, setToast] = useState(null);
 
-  const onPick = async (prop, file) => {
+  const pick = async (p, file) => {
     if (!file) return;
-    setBusyId(prop.id); setMsg(m => ({ ...m, [prop.id]: '' }));
-    const { error } = await uploadPropertyLogo(prop.id, file);
-    setMsg(m => ({ ...m, [prop.id]: error ? 'Error: ' + error.message : 'Logo updated ✓' }));
+    setBusyId(p.id);
+    const { error } = await uploadPropertyLogo(p.id, file);
     setBusyId(null);
-    setTimeout(() => setMsg(m => ({ ...m, [prop.id]: '' })), 4000);
-  };
-
-  const onRemove = async (prop) => {
-    setBusyId(prop.id);
-    await removePropertyLogo(prop.id);
-    setBusyId(null);
+    setToast(error ? { message: error.message, tone: 'error' } : { message: `${p.name}: logo updated` });
   };
 
   return (
     <div>
-      <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'6px' }}>PROPERTY BRANDING</div>
-      <div style={{ fontSize:'12px', color:T.textFaint, fontFamily:T.sans, marginBottom:'16px', lineHeight:'1.5' }}>
-        Upload a logo for each property. It replaces the emoji icon in the property list and header. PNG or JPG, under 2MB. Square or wide images both work.
-      </div>
-
-      {properties.map(prop => (
-        <div key={prop.id} style={{ display:'flex', alignItems:'center', gap:'14px', background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'10px', padding:'14px', marginBottom:'8px' }}>
-          <div style={{ width:'52px', height:'52px', borderRadius:'10px', background:prop.logo_url?T.surface:T.primaryFade, border:`1px solid ${prop.logo_url?T.border:T.primaryBorder}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'26px', flexShrink:0, overflow:'hidden' }}>
-            {prop.logo_url
-              ? <img src={prop.logo_url} alt={prop.name} style={{ width:'100%', height:'100%', objectFit:'contain', padding:'4px' }}/>
-              : prop.icon}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans }}>{prop.name}</div>
-            {msg[prop.id] && <div style={{ fontSize:'11px', color:msg[prop.id].includes('Error')?T.red:T.accent, marginTop:'2px', fontFamily:T.sans }}>{msg[prop.id]}</div>}
-            <div style={{ display:'flex', gap:'8px', marginTop:'6px' }}>
-              <label style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, color:T.accent, borderRadius:'6px', padding:'5px 12px', cursor:busyId===prop.id?'default':'pointer', fontSize:'12px', fontFamily:T.sans, fontWeight:'600', opacity:busyId===prop.id?0.6:1 }}>
-                {busyId===prop.id ? 'Uploading…' : (prop.logo_url ? 'Replace logo' : 'Upload logo')}
-                <input type="file" accept="image/*" disabled={busyId===prop.id} onChange={e=>onPick(prop, e.target.files?.[0])} style={{ display:'none' }}/>
+      <p style={{ ...S.meta, fontSize: 14, margin: '0 0 14px', lineHeight: 1.5 }}>
+        A logo replaces the icon in the property list. PNG or JPG under 2 MB; square or wide both work.
+      </p>
+      <div style={{ ...S.card, overflow: 'hidden' }}>
+        {properties.map((p, i) => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: i ? `1px solid ${T.borderLight}` : 'none', flexWrap: 'wrap' }}>
+            <PropertyBadge property={p} size={52}/>
+            <div style={{ flex: 1, minWidth: 120, fontSize: 15, fontWeight: 600, color: T.text }}>{p.name}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ ...S.btnOutline, cursor: busyId === p.id ? 'default' : 'pointer', opacity: busyId === p.id ? 0.6 : 1 }}>
+                <Icon name="image" size={16}/>{busyId === p.id ? 'Uploading…' : p.logo_url ? 'Replace' : 'Upload'}
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busyId === p.id} onChange={e => pick(p, e.target.files?.[0])} style={{ display: 'none' }}/>
               </label>
-              {prop.logo_url && (
-                <button onClick={()=>onRemove(prop)} disabled={busyId===prop.id} style={{ background:'none', border:`1px solid ${T.border}`, color:T.red, borderRadius:'6px', padding:'5px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
-                  Remove
-                </button>
-              )}
+              {p.logo_url && <button onClick={async () => { setBusyId(p.id); await removePropertyLogo(p.id); setBusyId(null); }} disabled={busyId === p.id} style={{ ...S.btnOutline, color: T.red, borderColor: T.redBorder }}>Remove</button>}
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)}/>}
     </div>
   );
 }
 
-// ── Main Settings Page ────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────
 export default function SettingsPage({ onBack, properties }) {
   const { isAdmin, can } = useAuth();
   const [tab, setTab] = useState('profile');
-
-  const TABS = [
-    { id:'profile', label:'Profile', icon:<Ic.person/> },
-    ...(isAdmin ? [
-      { id:'users',    label:'Users',    icon:<Ic.person/> },
-      { id:'props',    label:'Branding', icon:<Ic.cog/> },
-      { id:'audit',    label:'Audit Log', icon:<Ic.audit/> },
-      { id:'app',      label:'Settings', icon:<Ic.cog/> },
-    ] : []),
-    ...(can('data_export') ? [{ id:'export', label:'Export', icon:<Ic.audit/> }] : []),
+  const tabs = [
+    ['profile', 'Profile'],
+    ...(isAdmin ? [['users', 'Users'], ['branding', 'Branding'], ['activity', 'Activity']] : []),
+    ...(can('data_export') ? [['export', 'Export']] : []),
   ];
 
   return (
-    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:T.sans }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-
-      {/* Header */}
-      <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, boxShadow:T.shadow, position:'sticky', top:0, zIndex:10 }}>
-        <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', gap:'10px' }}>
-          <button onClick={onBack} style={{ display:'flex', alignItems:'center', gap:'4px', background:'none', border:'none', color:T.textDim, cursor:'pointer', fontFamily:T.sans, fontSize:'12px', padding:'4px 0' }}
-            onMouseEnter={e=>e.currentTarget.style.color=T.accent} onMouseLeave={e=>e.currentTarget.style.color=T.textDim}>
-            <Ic.back/> Properties
-          </button>
-          <div style={{ width:'1px', height:'16px', background:T.border }}/>
-          <div style={{ fontSize:'15px', fontWeight:'700', color:T.text }}>Settings</div>
-        </div>
-        <div style={{ display:'flex', borderTop:`1px solid ${T.border}`, overflowX:'auto' }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:'5px', padding:'11px 8px', background:'none', border:'none', cursor:'pointer', borderBottom:tab===t.id?`2px solid ${T.primary}`:'2px solid transparent', color:tab===t.id?T.accent:T.textDim, fontSize:'12px', fontWeight:tab===t.id?'700':'500', fontFamily:T.sans, transition:'all 0.15s', whiteSpace:'nowrap' }}>
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'20px 14px' }}>
-        {tab==='profile' && <ProfileTab/>}
-        {tab==='users'   && <UsersTab properties={properties}/>}
-        {tab==='props'   && <PropertiesTab/>}
-        {tab==='audit'   && <AuditTab properties={properties}/>}
-        {tab==='app'     && <AppSettingsTab/>}
-        {tab==='export'  && <DataExportTab/>}
-      </div>
+    <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.sans }}>
+      <PageHeader title="Settings" onBack={onBack}/>
+      <Page>
+        {tabs.length > 1 && (
+          <nav aria-label="Settings sections" style={{ display: 'flex', gap: 8, overflowX: 'auto', margin: '0 -16px 16px', padding: '0 16px 2px' }}>
+            {tabs.map(([id, label]) => {
+              const on = tab === id;
+              return (
+                <button key={id} onClick={() => setTab(id)} aria-current={on ? 'page' : undefined}
+                  style={{ height: 40, padding: '0 16px', borderRadius: 20, flexShrink: 0, cursor: 'pointer', fontFamily: T.sans, fontSize: 15, fontWeight: on ? 600 : 500,
+                    background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}` }}>
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+        {tab === 'profile'  && <ProfileTab/>}
+        {tab === 'users'    && <UsersTab properties={properties || []}/>}
+        {tab === 'branding' && <BrandingTab/>}
+        {tab === 'activity' && <ActivityTab properties={properties || []}/>}
+        {tab === 'export'   && <Suspense fallback={<Loading/>}><DataExportTab/></Suspense>}
+      </Page>
     </div>
   );
 }

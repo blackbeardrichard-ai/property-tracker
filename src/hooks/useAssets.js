@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { logAction } from '../lib/audit';
+import { todayISO } from '../lib/format';
 
 export function useAssets(propertyId) {
   const { user, profile } = useAuth();
@@ -66,7 +67,7 @@ export function useAssets(propertyId) {
       asset_id: assetId,
       from_property: propertyId,
       to_property: toPropertyId,
-      moved_date: new Date().toISOString().split('T')[0],
+      moved_date: todayISO(),
       reason,
       authorised_by: user.id,
     });
@@ -76,7 +77,7 @@ export function useAssets(propertyId) {
   };
 
   const logAssetService = async (assetId, logData) => {
-    await supabase.from('asset_service_logs').insert({
+    const { error } = await supabase.from('asset_service_logs').insert({
       asset_id: assetId,
       done_date: logData.doneDate,
       description: logData.description,
@@ -86,10 +87,13 @@ export function useAssets(propertyId) {
       next_service: logData.nextService || null,
       logged_by: user.id,
     });
-    if (logData.nextService) {
-      await supabase.from('assets').update({ condition: logData.condition || 'good' }).eq('id', assetId);
+    if (error) return { error };
+    // The condition seen at the service is saved whether or not a next service date was given.
+    if (logData.condition) {
+      await supabase.from('assets').update({ condition: logData.condition }).eq('id', assetId);
     }
     fetchAssets();
+    return {};
   };
 
   return { assets, loading, addAsset, updateAsset, deleteAsset, moveAsset, logAssetService, fetchAssets };

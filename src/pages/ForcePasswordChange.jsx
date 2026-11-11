@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { T, S } from '../lib/theme';
+import { Icon } from '../components/ui';
 
 export default function ForcePasswordChange() {
   const { profile, signOut, refetchProfile } = useAuth();
@@ -34,30 +35,29 @@ export default function ForcePasswordChange() {
 
   return (
     <div style={{ minHeight:'100vh', background:T.bg, fontFamily:T.sans, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       <div style={{ width:'100%', maxWidth:'400px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:'14px', padding:'28px 24px', boxShadow:T.shadow }}>
-        <div style={{ width:'44px', height:'44px', background:T.primary, borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', marginBottom:'16px' }}>🔐</div>
+        <div style={{ width:'44px', height:'44px', background:T.primaryFade, color:T.primary, borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'16px' }}><Icon name="key" size={22}/></div>
         <div style={{ fontSize:'19px', fontWeight:'700', color:T.text, marginBottom:'6px' }}>Set your password</div>
-        <div style={{ fontSize:'13px', color:T.textDim, marginBottom:'22px', lineHeight:'1.6' }}>
+        <div style={{ fontSize:'15px', color:T.textMid, marginBottom:'22px', lineHeight:'1.5' }}>
           Welcome{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}. For security, please choose a new password before continuing.
         </div>
 
         <div style={{ marginBottom:'12px' }}>
-          <div style={S.fieldLabel}>NEW PASSWORD</div>
-          <input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.input} autoFocus/>
+          <label htmlFor="fp-new" style={S.fieldLabel}>New password</label>
+          <input id="fp-new" type="password" autoComplete="new-password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.input} autoFocus/>
         </div>
         <div style={{ marginBottom:'18px' }}>
-          <div style={S.fieldLabel}>CONFIRM NEW PASSWORD</div>
-          <input type="password" value={confirmPw} onChange={e=>setConfirmPw(e.target.value)} placeholder="Repeat new password" style={S.input} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+          <label htmlFor="fp-confirm" style={S.fieldLabel}>Confirm new password</label>
+          <input id="fp-confirm" type="password" autoComplete="new-password" value={confirmPw} onChange={e=>setConfirmPw(e.target.value)} placeholder="Repeat new password" style={S.input} onKeyDown={e=>e.key==='Enter'&&submit()}/>
         </div>
 
-        {msg && <div style={{ fontSize:'13px', color:msg.includes('Error')?T.red:T.accent, marginBottom:'14px', fontFamily:T.sans }}>{msg}</div>}
+        {msg && <div role="alert" style={{ fontSize:'14px', color:T.red, background:T.redFade, padding:'10px 12px', borderRadius:'8px', marginBottom:'14px' }}>{msg}</div>}
 
-        <button onClick={submit} disabled={saving} style={{ ...S.btnPrimary, width:'100%', padding:'12px', opacity:saving?0.7:1 }}>
+        <button onClick={submit} disabled={saving} style={{ ...S.btnPrimary, width:'100%', height:'48px', opacity:saving?0.7:1 }}>
           {saving ? 'Saving…' : 'Set password & continue'}
         </button>
 
-        <button onClick={signOut} style={{ ...S.btnGhost, width:'100%', padding:'10px', marginTop:'10px' }}>
+        <button onClick={signOut} style={{ ...S.btnGhost, width:'100%', marginTop:'10px' }}>
           Sign out
         </button>
       </div>

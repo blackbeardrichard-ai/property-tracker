@@ -1,141 +1,137 @@
+// Property Tracker theme — "Option B" (Nov 2026).
+// Neutral base, one action colour (ink blue), and a separate colour per status.
+// Every text colour passes WCAG 4.5:1 on both `surface` (#FFFFFF) and `bg` (#F4F5F7).
+// Never hard-code colours in components: use these tokens.
+
 export const T = {
-  // Core colours
-  primary:       '#C8531A',
-  primaryFade:   'rgba(200,83,26,0.10)',
-  primaryBorder: 'rgba(200,83,26,0.30)',
-  primaryLight:  'rgba(200,83,26,0.06)',
-  accent:        '#E8742A',
-  accentFade:    'rgba(232,116,42,0.12)',
+  // Action colour — buttons, active tab, links, selected chips (white text on it: 8.7:1)
+  primary:       '#1F4E79',
+  primaryHover:  '#163A5C',
+  primaryFade:   '#E7EEF6',   // selected / "to buy" background (primary text on it: 7.4:1)
+  primaryBorder: '#C9D3DF',
 
-  // Backgrounds
-  bg:            '#F2F2F2',
-  surface:       '#FFFFFF',
-  surface2:      '#EBEBEB',
-  surfaceCard:   '#FFFFFF',
-  controlBg:     '#EFEFEF',   // unselected buttons / filter chips / control fills
-  controlBgFaint:'#F5F5F5',   // very subtle fills (progress tracks, etc.)
-  popoverBg:     '#FFFFFF',   // dropdown / popover menu background
+  // Surfaces
+  bg:            '#F4F5F7',   // page
+  surface:       '#FFFFFF',   // cards, header, bottom bar
+  surface2:      '#F4F5F7',   // inset panels inside a card
+  controlBg:     '#EEF0F3',   // unselected chips / segmented control track
+  controlBgFaint:'#F7F8FA',
+  popoverBg:     '#FFFFFF',
 
-  // Borders
-  border:        '#DEDEDE',
-  borderLight:   '#E8E8E8',
+  // Lines
+  border:        '#D5DAE1',
+  borderLight:   '#E6E9EE',   // dividers inside a card
 
-  // Text
-  text:          '#1A1A1A',
-  textMid:       '#555555',
-  textDim:       '#888888',
-  textFaint:     '#BBBBBB',
+  // Text (all ≥4.5:1 on white and on bg)
+  text:          '#111827',   // 17.7:1
+  textMid:       '#4B5563',   // 7.6:1
+  textDim:       '#5F6875',   // 5.6:1 — dates, quantities, hints
+  textFaint:     '#5F6875',   // kept as an alias: nothing lighter is used for text
+  onPrimary:     '#FFFFFF',
 
-  // Status
-  red:           '#D94040',
-  redFade:       'rgba(217,64,64,0.08)',
-  warn:          '#C47A00',
-  warnFade:      'rgba(196,122,0,0.10)',
-  warnBorder:    'rgba(196,122,0,0.30)',
+  // Status — each meaning has its own colour, never the action colour
+  red:           '#B42318',   // overdue / danger (on redFade 5.8:1)
+  redFade:       '#FDECEA',
+  redBorder:     '#F3C3BD',
+  warn:          '#8A5300',   // needs attention: no due date, due soon (on warnFade 5.7:1)
+  warnFade:      '#FFF3D6',
+  warnBorder:    '#EED9A4',
+  info:          '#0E6576',   // on site / delivered (on infoFade 5.9:1)
+  infoFade:      '#E3F4F6',
+  infoBorder:    '#B7DDE3',
+  ok:            '#1E6B3F',   // done / used / good (on okFade 5.7:1)
+  okFade:        '#E6F4EC',
+  okBorder:      '#BFE0CC',
 
-  // Priority colours
-  high:          '#D94040',
-  medium:        '#C47A00',
-  low:           '#2D7A4F',
+  // Legacy aliases still referenced by older screens
+  accent:        '#1F4E79',
+  accentFade:    '#E7EEF6',
 
   // Typography
-  sans:          "'DM Sans', sans-serif",
-  mono:          "'DM Mono', monospace",
+  sans:          "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  mono:          "'Inter', system-ui, sans-serif",   // DM Mono retired; figures use tabular numerals
+  num:           "'tnum' 1",
 
-  // Misc
-  radius:        '10px',
-  shadow:        '0 2px 12px rgba(0,0,0,0.09)',
-  shadowMd:      '0 4px 24px rgba(0,0,0,0.13)',
-  shadowLg:      '0 8px 40px rgba(0,0,0,0.16)',
+  // Shape
+  radius:        '12px',
+  radiusSm:      '9px',
+  shadow:        '0 1px 2px rgba(17,24,39,0.06)',
+  shadowMd:      '0 4px 16px rgba(17,24,39,0.10)',
+  shadowLg:      '0 12px 40px rgba(17,24,39,0.18)',
+  tap:           '44px',      // minimum touch target
 };
 
 export const S = {
   input: {
+    width:'100%', boxSizing:'border-box', height:'44px',
+    background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.radiusSm,
+    color:T.text, padding:'0 12px', fontSize:'15px', outline:'none', fontFamily:T.sans,
+  },
+  textarea: {
     width:'100%', boxSizing:'border-box',
-    background:'#FFFFFF',
-    borderRadius:'8px',
-    color:'#1A1A1A',
-    padding:'10px 13px',
-    fontSize:'14px',
-    outline:'none',
-    fontFamily:"'DM Sans', sans-serif",
-    border:'1px solid #DEDEDE',
+    background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.radiusSm,
+    color:T.text, padding:'10px 12px', fontSize:'15px', lineHeight:1.45, outline:'none',
+    fontFamily:T.sans, resize:'vertical',
   },
   btnPrimary: {
-    background:'#C8531A',
-    border:'none',
-    color:'#FFFFFF',
-    fontWeight:'700',
-    borderRadius:'8px',
-    padding:'11px',
-    cursor:'pointer',
-    fontSize:'13px',
-    fontFamily:"'DM Sans', sans-serif",
+    height:'44px', padding:'0 18px', background:T.primary, border:'none', color:T.onPrimary,
+    fontWeight:600, borderRadius:'10px', cursor:'pointer', fontSize:'15px', fontFamily:T.sans,
+    display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'8px',
   },
   btnGhost: {
-    background:'none',
-    border:'1px solid #DEDEDE',
-    color:'#555555',
-    borderRadius:'8px',
-    padding:'11px',
-    cursor:'pointer',
-    fontSize:'13px',
-    fontFamily:"'DM Sans', sans-serif",
+    height:'44px', padding:'0 16px', background:T.surface, border:`1px solid ${T.border}`,
+    color:T.text, borderRadius:'10px', cursor:'pointer', fontSize:'15px', fontWeight:500,
+    fontFamily:T.sans, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'8px',
   },
-  overlay: {
-    position:'fixed', inset:0, zIndex:200,
-    background:'rgba(0,0,0,0.4)',
-    display:'flex', alignItems:'center', justifyContent:'center',
-    padding:'16px',
-  },
-  card: {
-    background:'#FFFFFF',
-    border:'1px solid #DEDEDE',
-    borderRadius:'14px',
-    padding:'22px',
-    width:'100%',
-    maxWidth:'440px',
-    boxShadow:'0 8px 40px rgba(0,0,0,0.16)',
-    maxHeight:'92vh',
-    overflowY:'auto',
-  },
-  mHead: {
-    display:'flex', alignItems:'center',
-    justifyContent:'space-between', marginBottom:'16px',
-  },
-  mLabel: {
-    fontSize:'11px',
-    fontFamily:"'DM Mono', monospace",
-    color:'#C8531A',
-    letterSpacing:'0.1em',
-  },
-  closeBtn: {
-    background:'none', border:'none',
-    color:'#888888', cursor:'pointer',
-    fontSize:'22px', lineHeight:1, padding:'0 2px',
-  },
-  fieldLabel: {
-    fontSize:'10px',
-    fontFamily:"'DM Mono', monospace",
-    color:'#C8531A',
-    letterSpacing:'0.08em',
-    marginBottom:'6px',
-  },
-  pill: {
-    fontSize:'11px',
-    fontFamily:"'DM Mono', monospace",
-    color:'#C8531A',
-    background:'rgba(200,83,26,0.10)',
-    borderRadius:'4px',
-    padding:'2px 8px',
+  btnOutline: {
+    height:'40px', padding:'0 12px', background:T.surface, border:`1px solid ${T.primaryBorder}`,
+    color:T.primary, borderRadius:T.radiusSm, cursor:'pointer', fontSize:'14px', fontWeight:600,
+    fontFamily:T.sans, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'6px',
     whiteSpace:'nowrap',
   },
-  menuItem: {
-    display:'flex', alignItems:'center', gap:'9px',
-    width:'100%', background:'none', border:'none',
-    color:'#555555', padding:'10px 13px',
-    borderRadius:'7px', cursor:'pointer',
-    fontSize:'13px', fontFamily:"'DM Sans', sans-serif",
-    textAlign:'left',
+  btnDanger: {
+    height:'44px', padding:'0 18px', background:T.red, border:'none', color:'#FFFFFF',
+    fontWeight:600, borderRadius:'10px', cursor:'pointer', fontSize:'15px', fontFamily:T.sans,
   },
+  btnDashed: {
+    height:'48px', width:'100%', background:'transparent', border:'1px dashed #9FB3C8',
+    borderRadius:'14px', color:T.primary, fontSize:'15px', fontWeight:600, cursor:'pointer',
+    fontFamily:T.sans, display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
+  },
+  iconBtn: {
+    width:'44px', height:'44px', border:'none', background:'transparent', color:T.textMid,
+    display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+    borderRadius:'10px', flexShrink:0, padding:0,
+  },
+  card: {
+    background:T.surface, border:`1px solid ${T.border}`, borderRadius:'14px',
+  },
+  overlay: {
+    position:'fixed', inset:0, zIndex:200, background:'rgba(17,24,39,0.45)',
+    display:'flex', alignItems:'flex-end', justifyContent:'center', padding:'0',
+  },
+  sheet: {
+    background:T.surface, borderRadius:'18px 18px 0 0', padding:'20px 18px 24px',
+    width:'100%', maxWidth:'520px', boxShadow:T.shadowLg, maxHeight:'92vh', overflowY:'auto',
+    boxSizing:'border-box',
+  },
+  mHead: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', marginBottom:'14px' },
+  mLabel: { fontSize:'17px', fontWeight:700, color:T.text, fontFamily:T.sans },
+  fieldLabel: { display:'block', fontSize:'13px', fontWeight:600, color:T.textMid, marginBottom:'6px', fontFamily:T.sans },
+  sectionLabel: { margin:0, fontSize:'14px', fontWeight:600, color:T.textMid, fontFamily:T.sans },
+  meta: { fontSize:'13px', color:T.textDim, fontFamily:T.sans },
+  chip: {
+    display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'12px', fontWeight:600,
+    borderRadius:'8px', padding:'4px 9px', whiteSpace:'nowrap', fontFamily:T.sans,
+  },
+  empty: { textAlign:'center', padding:'40px 20px', color:T.textDim, fontSize:'14px', fontFamily:T.sans },
+};
+
+// Back-compat for screens that still spread S.closeBtn / S.pill / S.menuItem
+S.closeBtn = S.iconBtn;
+S.pill = { ...S.chip, color:T.primary, background:T.primaryFade };
+S.menuItem = {
+  display:'flex', alignItems:'center', gap:'10px', width:'100%', minHeight:'44px',
+  background:'none', border:'none', color:T.text, padding:'0 14px', borderRadius:'8px',
+  cursor:'pointer', fontSize:'15px', fontFamily:T.sans, textAlign:'left',
 };

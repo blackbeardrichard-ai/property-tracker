@@ -1,99 +1,90 @@
 import { useMemo, useState } from 'react';
 import { useGlobalData } from '../hooks/useGlobalData';
-import { T } from '../lib/theme';
+import { T, S } from '../lib/theme';
+import { fmtDate, todayISO } from '../lib/format';
+import { MAT_STATUS, matStatus, isToBuy, isOnSite } from '../lib/status';
+import { Icon, PageHeader, Page, PropertyBadge, Chip, Loading, Empty } from '../components/ui';
+import { shareList, ShareSheet } from './property/ShoppingTab';
 
-const MAT_STATUS = {
-  needed:    { label:'Needed',    color:T.red },
-  ordered:   { label:'Ordered',   color:T.warn },
-  delivered: { label:'Delivered', color:'#95D5B2' },
-};
+const TONE = { needed: 'primary', ordered: 'neutral', delivered: 'info' };
+const taskOf = m => m.subtask?.task?.name || '';
 
+// All properties' "to buy" lists (Needed + Ordered — the same rule as each property's Shopping tab).
 export default function ShoppingListPage({ onBack }) {
   const { properties, materials, loading } = useGlobalData(['materials']);
-  const [showDelivered, setShowDelivered] = useState(false);
+  const [showOnSite, setShowOnSite] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const propById = useMemo(() => Object.fromEntries((properties || []).map(p => [p.id, p])), [properties]);
 
-  const propById = useMemo(() => Object.fromEntries((properties||[]).map(p=>[p.id,p])), [properties]);
-
-  // Pending = needed + ordered (+ delivered if toggled). Exclude 'used'.
   const groups = useMemo(() => {
-    const statuses = showDelivered ? ['needed','ordered','delivered'] : ['needed','ordered'];
-    const pending = (materials||[]).filter(m => statuses.includes(m.status||'needed'));
+    const keep = m => isToBuy(m) || (showOnSite && isOnSite(m));
+    const order = { needed: 0, ordered: 1, delivered: 2 };
     const byProp = {};
-    pending.forEach(m => { (byProp[m.property_id] = byProp[m.property_id] || []).push(m); });
-    return Object.entries(byProp).map(([pid, items]) => ({
-      property: propById[pid],
-      items: items.sort((a,b)=>(a.status||'').localeCompare(b.status||'')),
-    })).filter(g => g.property).sort((a,b)=>a.property.name.localeCompare(b.property.name));
-  }, [materials, propById, showDelivered]);
+    (materials || []).filter(keep).forEach(m => { (byProp[m.property_id] = byProp[m.property_id] || []).push(m); });
+    return Object.entries(byProp)
+      .map(([pid, items]) => ({ property: propById[pid], items: items.sort((a, b) => order[matStatus(a)] - order[matStatus(b)]) }))
+      .filter(g => g.property).sort((a, b) => a.property.name.localeCompare(b.property.name));
+  }, [materials, propById, showOnSite]);
 
-  const total = groups.reduce((n,g)=>n+g.items.length, 0);
-
-  const shareWhatsApp = () => {
-    let txt = '🛒 Shopping List\n\n';
+  const toBuy = (materials || []).filter(m => isToBuy(m) && propById[m.property_id]);
+  const text = useMemo(() => {
+    const lines = ['Shopping list', fmtDate(todayISO()), ''];
     groups.forEach(g => {
-      txt += `*${g.property.name}*\n`;
-      g.items.forEach(m => { txt += `• ${m.name}${m.qty?` (${m.qty} ${m.unit||''})`:''} — ${MAT_STATUS[m.status||'needed']?.label||m.status}\n`; });
-      txt += '\n';
+      const items = g.items.filter(isToBuy);
+      if (!items.length) return;
+      lines.push(`*${g.property.name}*`);
+      items.forEach(m => lines.push(`• ${m.name}${m.qty ? ` — ${m.qty} ${m.unit || ''}`.trimEnd() : ''}${matStatus(m) === 'ordered' ? ' (ordered)' : ''}`));
+      lines.push('');
     });
-    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
-  };
+    return lines.join('\n').trim();
+  }, [groups]);
 
   return (
-    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:T.sans }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-
-      <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, boxShadow:T.shadow, position:'sticky', top:0, zIndex:10, padding:'12px 16px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <button onClick={onBack} style={{ display:'flex', alignItems:'center', gap:'4px', background:'none', border:'none', color:T.textDim, cursor:'pointer', fontFamily:T.sans, fontSize:'12px', padding:'4px 0' }}
-            onMouseEnter={e=>e.currentTarget.style.color=T.accent} onMouseLeave={e=>e.currentTarget.style.color=T.textDim}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> Back
-          </button>
-          <div style={{ width:'1px', height:'16px', background:T.border }}/>
-          <div style={{ fontSize:'15px', fontWeight:'700', color:T.text, flex:1 }}>Shopping List</div>
-          <span style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.mono }}>{total} item{total===1?'':'s'}</span>
-        </div>
-      </div>
-
-      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'18px 14px' }}>
-        {loading ? (
-          <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading…</div>
-        ) : total === 0 ? (
-          <div style={{ textAlign:'center', padding:'50px 20px', color:T.textFaint, fontFamily:T.mono, fontSize:'13px' }}>Nothing pending — all caught up.</div>
-        ) : (
+    <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.sans }}>
+      <PageHeader title="Shopping list" subtitle="All properties" onBack={onBack}/>
+      <Page>
+        {loading ? <Loading/> : (
           <>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-              <button onClick={shareWhatsApp} style={{ display:'inline-flex', alignItems:'center', gap:'6px', background:T.primary, border:'none', color:'#fff', fontSize:'13px', borderRadius:'8px', padding:'9px 16px', cursor:'pointer', fontFamily:T.sans, fontWeight:'700' }}>
-                📲 Share via WhatsApp
-              </button>
-              <button onClick={()=>setShowDelivered(v=>!v)} style={{ background:T.controlBg, border:`1px solid ${T.border}`, color:T.textMid, fontSize:'12px', borderRadius:'8px', padding:'9px 14px', cursor:'pointer', fontFamily:T.sans }}>
-                {showDelivered ? 'Hide delivered' : 'Show delivered'}
-              </button>
+            <div style={{ ...S.card, padding: '14px 16px', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: toBuy.length ? T.primary : T.textDim }}>{toBuy.length}</span>
+                <span style={{ fontSize: 15, color: T.text }}>to buy</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                {toBuy.length > 0 && (
+                  <button onClick={() => shareList(text, () => setSharing(true))} style={{ ...S.btnPrimary, flex: 2, minWidth: 180 }}><Icon name="send" size={18}/> Share on WhatsApp</button>
+                )}
+                <button onClick={() => setShowOnSite(v => !v)} aria-pressed={showOnSite} style={{ ...S.btnGhost, flex: 1, minWidth: 140 }}>
+                  {showOnSite ? 'Hide on-site items' : 'Show on-site items'}
+                </button>
+              </div>
             </div>
 
+            {groups.length === 0 && <Empty>Nothing to buy.</Empty>}
             {groups.map(g => (
-              <div key={g.property.id} style={{ marginBottom:'18px' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
-                  <span style={{ fontSize:'18px' }}>{g.property.icon}</span>
-                  <span style={{ fontSize:'13px', fontWeight:'700', color:T.text, fontFamily:T.sans, flex:1 }}>{g.property.name}</span>
-                  <span style={{ fontSize:'11px', color:T.textFaint, fontFamily:T.mono }}>{g.items.length}</span>
+              <section key={g.property.id} style={{ marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <PropertyBadge property={g.property} size={28}/>
+                  <h2 style={{ ...S.sectionLabel, color: T.text, fontSize: 15, flex: 1 }}>{g.property.name}</h2>
+                  <span style={S.meta}>{g.items.length}</span>
                 </div>
-                {g.items.map(m => {
-                  const st = MAT_STATUS[m.status||'needed'] || MAT_STATUS.needed;
-                  return (
-                    <div key={m.id} style={{ display:'flex', alignItems:'center', gap:'12px', background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'8px', padding:'10px 14px', marginBottom:'4px' }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:'14px', color:T.text, fontFamily:T.sans }}>{m.name}</div>
-                        {m.qty && <span style={{ fontSize:'11px', fontFamily:T.mono, color:T.textFaint }}>{m.qty} {m.unit||''}</span>}
+                <div style={{ ...S.card, overflow: 'hidden' }}>
+                  {g.items.map((m, i) => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '8px 14px', borderTop: i ? `1px solid ${T.borderLight}` : 'none' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, color: T.text }}>{m.name}</div>
+                        <div style={S.meta}>{[m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '', taskOf(m)].filter(Boolean).join(' · ')}</div>
                       </div>
-                      <span style={{ fontSize:'10px', fontFamily:T.mono, color:st.color, background:`${st.color}20`, border:`1px solid ${st.color}40`, borderRadius:'4px', padding:'3px 8px' }}>{st.label}</span>
+                      <Chip tone={TONE[matStatus(m)]}>{MAT_STATUS[matStatus(m)].label}</Chip>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              </section>
             ))}
           </>
         )}
-      </div>
+      </Page>
+      {sharing && <ShareSheet text={text} onClose={() => setSharing(false)}/>}
     </div>
   );
 }

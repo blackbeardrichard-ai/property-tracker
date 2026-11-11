@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
 import { useGlobalData } from '../hooks/useGlobalData';
 import { T, S } from '../lib/theme';
+import { todayISO } from '../lib/format';
+import { Icon, Loading } from '../components/ui';
 
 const TYPES = [
   { key:'tasks',     label:'Tasks & Subtasks' },
@@ -16,6 +17,7 @@ export default function DataExportTab() {
   const [selTypes, setSelTypes] = useState(() => new Set(TYPES.map(t=>t.key)));
   const [selProps, setSelProps] = useState(null); // null = all accessible
   const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const propById = Object.fromEntries((properties||[]).map(p=>[p.id,p]));
   const propName = id => propById[id]?.name || '';
@@ -27,7 +29,7 @@ export default function DataExportTab() {
     const n = new Set(base); n.has(id)?n.delete(id):n.add(id); return n;
   });
 
-  const buildSheets = () => {
+  const buildSheets = (XLSX) => {
     const wb = XLSX.utils.book_new();
     const add = (name, rows) => { if (rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name); };
 
@@ -64,50 +66,60 @@ export default function DataExportTab() {
     return wb;
   };
 
-  const doExport = () => {
+  // xlsx is ~400 kB, so it is loaded only when someone actually exports.
+  const doExport = async () => {
     if (selTypes.size === 0) { setMsg('Select at least one data type.'); return; }
-    setMsg('');
-    const wb = buildSheets();
-    if (!wb.SheetNames.length) { setMsg('No data to export for the current selection.'); return; }
-    const date = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `property-tracker-export-${date}.xlsx`);
+    setMsg(''); setBusy(true);
+    try {
+      const XLSX = await import('xlsx');
+      const wb = buildSheets(XLSX);
+      if (!wb.SheetNames.length) { setMsg('No data to export for this selection.'); return; }
+      XLSX.writeFile(wb, `property-tracker-export-${todayISO()}.xlsx`);
+    } catch (e) {
+      setMsg(`Export failed: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading data…</div>;
+  if (loading) return <Loading label="Loading data…"/>;
 
   return (
     <div>
-      <div style={{ fontSize:'12px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'6px' }}>DATA EXPORT</div>
-      <div style={{ fontSize:'12px', color:T.textFaint, fontFamily:T.sans, marginBottom:'16px', lineHeight:'1.5' }}>
-        Download your data as an Excel workbook — one tab per type. Covers the properties you have access to.
-      </div>
+      <h2 style={{ ...S.sectionLabel, color: T.text, fontSize: 17, marginBottom: 4 }}>Data export</h2>
+      <p style={{ ...S.meta, fontSize: 14, margin: '0 0 16px', lineHeight: 1.5 }}>
+        Download your data as an Excel workbook, one sheet per type. Covers the properties you have access to.
+      </p>
 
-      <div style={{ ...S.fieldLabel, marginBottom:'8px' }}>WHAT TO EXPORT</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'18px' }}>
-        {TYPES.map(t => (
-          <label key={t.key} style={{ display:'flex', alignItems:'center', gap:'10px', background:T.surface2, border:`1px solid ${selTypes.has(t.key)?T.primaryBorder:T.border}`, borderRadius:'8px', padding:'10px 14px', cursor:'pointer' }}>
-            <input type="checkbox" checked={selTypes.has(t.key)} onChange={()=>toggleType(t.key)} style={{ width:'16px', height:'16px', accentColor:T.primary }}/>
-            <span style={{ fontSize:'13px', color:T.text, fontFamily:T.sans }}>{t.label}</span>
+      <div style={S.fieldLabel}>What to export</div>
+      <div style={{ ...S.card, overflow: 'hidden', marginBottom: 18 }}>
+        {TYPES.map((t, i) => (
+          <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 52, padding: '0 14px', borderTop: i ? `1px solid ${T.borderLight}` : 'none', cursor: 'pointer' }}>
+            <input type="checkbox" checked={selTypes.has(t.key)} onChange={() => toggleType(t.key)} style={{ width: 20, height: 20, accentColor: T.primary }}/>
+            <span style={{ fontSize: 15, color: T.text }}>{t.label}</span>
           </label>
         ))}
       </div>
 
-      <div style={{ ...S.fieldLabel, marginBottom:'8px' }}>PROPERTIES (all by default)</div>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'20px' }}>
-        {(properties||[]).map(p => {
+      <div style={S.fieldLabel}>Properties</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {(properties || []).map(p => {
           const on = propAllowed(p.id);
           return (
-            <button key={p.id} onClick={()=>toggleProp(p.id)} style={{ background:on?T.primaryFade:T.controlBg, border:`1px solid ${on?T.primaryBorder:T.border}`, color:on?T.accent:T.textDim, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', fontFamily:T.sans }}>
-              {p.icon} {p.name}
+            <button key={p.id} onClick={() => toggleProp(p.id)} aria-pressed={on}
+              style={{ height: 40, padding: '0 14px', borderRadius: 20, cursor: 'pointer', fontSize: 14, fontFamily: T.sans, fontWeight: on ? 600 : 500,
+                background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}`,
+                display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {on && <Icon name="check" size={16}/>}{p.name}
             </button>
           );
         })}
       </div>
 
-      {msg && <div style={{ fontSize:'13px', color:T.red, marginBottom:'12px', fontFamily:T.sans }}>{msg}</div>}
+      {msg && <div role="alert" style={{ fontSize: 14, color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, marginBottom: 12 }}>{msg}</div>}
 
-      <button onClick={doExport} style={{ ...S.btnPrimary, padding:'11px 20px' }}>
-        ⬇ Download Excel
+      <button onClick={doExport} disabled={busy} style={{ ...S.btnPrimary, opacity: busy ? 0.7 : 1 }}>
+        <Icon name="download" size={18}/> {busy ? 'Preparing…' : 'Download Excel'}
       </button>
     </div>
   );

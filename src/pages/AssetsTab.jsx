@@ -2,342 +2,249 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAssets } from '../hooks/useAssets';
 import { T, S } from '../lib/theme';
+import { fmtDate, todayISO } from '../lib/format';
+import { Icon, Chip, Field, Sheet, ConfirmSheet, ActionMenu, Loading, Empty, Toast } from '../components/ui';
 
 const CATEGORIES = ['Machinery', 'Vehicle', 'Implement', 'Equipment', 'Tool', 'Other'];
 const CONDITIONS = [
-  { value: 'good',            label: 'Good',            color: '#95D5B2' },
-  { value: 'fair',            label: 'Fair',            color: '#e8c44a' },
-  { value: 'needs_attention', label: 'Needs Attention', color: '#e07070' },
-  { value: 'out_of_service',  label: 'Out of Service',  color: '#666' },
+  { value: 'good',            label: 'Good',            tone: 'ok' },
+  { value: 'fair',            label: 'Fair',            tone: 'warn' },
+  { value: 'needs_attention', label: 'Needs attention', tone: 'red' },
+  { value: 'out_of_service',  label: 'Out of service',  tone: 'neutral' },
 ];
+const condition = v => CONDITIONS.find(c => c.value === v) || CONDITIONS[0];
+const fmtRand = v => (v ? `R ${parseFloat(v).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` : '');
+// Empty form fields go to the database as null, not '' (which date and number columns reject).
+const clean = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]));
 
-const fmtDate = d => d ? new Date(d).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const fmtCurrency = v => v ? `R ${parseFloat(v).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}` : '—';
-
-const Ic = {
-  plus:    (s=14) => <svg width={s} height={s} viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
-  chevron: (open) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{transform:open?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.2s',flexShrink:0}}><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  dots:    () => <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="12" cy="8" r="1.4" fill="currentColor"/></svg>,
-  trash:   () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 3h11M4 3V2h5v1M2 3l1 8h7l1-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  pencil:  () => <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  move:    () => <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12M4 4l3-3 3 3M4 10l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  wrench:  () => <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M14.5 3a3.5 3.5 0 00-3.45 4.1L4 14.2 5.8 16l7.1-7.05A3.5 3.5 0 1014.5 3z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-};
-
-function ConditionBadge({ condition }) {
-  const c = CONDITIONS.find(x => x.value === condition) || CONDITIONS[0];
+function ConditionPicker({ value, onChange }) {
   return (
-    <span style={{ fontSize:'10px', fontFamily:T.mono, color:c.color, background:`${c.color}20`, borderRadius:'4px', padding:'2px 7px' }}>
-      {c.label}
-    </span>
-  );
-}
-
-function DotsMenu({ items }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ position:'relative', flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-      <button onClick={e=>{e.stopPropagation();setOpen(!open);}} style={{ background:open?T.primaryFade:'none', border:open?`1px solid ${T.primaryBorder}`:'1px solid transparent', cursor:'pointer', color:open?T.accent:T.textDim, borderRadius:'6px', display:'flex', alignItems:'center', padding:'4px 6px' }}>
-        <Ic.dots/>
-      </button>
-      {open && (
-        <>
-          <div style={{ position:'fixed', inset:0, zIndex:140 }} onClick={()=>setOpen(false)}/>
-          <div style={{ position:'absolute', right:0, top:'calc(100% + 5px)', zIndex:150, background:T.popoverBg, border:`1px solid ${T.borderLight}`, borderRadius:T.radius, padding:'6px', minWidth:'170px', boxShadow:T.shadow }}>
-            {items.map((item,i) => item==='divider'
-              ? <div key={i} style={{ height:'1px', background:T.border, margin:'4px 0' }}/>
-              : <button key={i} onClick={()=>{item.action();setOpen(false);}} style={{ display:'flex', alignItems:'center', gap:'9px', width:'100%', background:'none', border:'none', color:item.danger?T.red:T.textMid, padding:'10px 13px', borderRadius:'7px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans, textAlign:'left' }}
-                  onMouseEnter={e=>e.currentTarget.style.background=item.danger?T.redFade:T.primaryFade}
-                  onMouseLeave={e=>e.currentTarget.style.background='none'}
-                >{item.icon} {item.label}</button>
-            )}
-          </div>
-        </>
-      )}
+    <div role="group" aria-label="Condition" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {CONDITIONS.map(c => {
+        const on = value === c.value;
+        return (
+          <button key={c.value} onClick={() => onChange(c.value)} aria-pressed={on}
+            style={{ height: 40, padding: '0 14px', borderRadius: 20, cursor: 'pointer', fontFamily: T.sans, fontSize: 14, fontWeight: on ? 600 : 500,
+              background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}` }}>
+            {c.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-// ── Add Asset Modal ───────────────────────────────────────────────
-function AddAssetModal({ onSave, onClose }) {
-  const [form, setForm] = useState({
-    name:'', category:'Machinery', make:'', model:'', serial_number:'',
-    year:'', purchase_date:'', purchase_price:'', condition:'good', notes:''
-  });
-  const f = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
-  const fld = (label, child) => (
-    <div style={{ marginBottom:'12px' }}>
-      <div style={S.fieldLabel}>{label}</div>
-      {child}
-    </div>
-  );
+function AddAssetSheet({ onSave, onClose }) {
+  const [form, setForm] = useState({ name: '', category: 'Machinery', make: '', model: '', serial_number: '', year: '', purchase_date: '', purchase_price: '', condition: 'good', notes: '' });
+  const [err, setErr] = useState('');
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const save = async () => {
+    if (!form.name.trim()) { setErr('Name is required.'); return; }
+    const { error } = await onSave(clean({ ...form, name: form.name.trim() }));
+    if (error) { setErr(error.message); return; }
+    onClose();
+  };
+  const half = { flex: 1, minWidth: 0 };
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
-        <div style={S.mHead}><span style={S.mLabel}>ADD ASSET</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-        {fld('ASSET NAME *', <input autoFocus value={form.name} onChange={f('name')} placeholder="e.g. John Deere Tractor" style={S.input}/>)}
-        {fld('CATEGORY', <select value={form.category} onChange={f('category')} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
-          {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>)}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('MAKE', <input value={form.make} onChange={f('make')} placeholder="e.g. John Deere" style={S.input}/>)}</div>
-          <div>{fld('MODEL', <input value={form.model} onChange={f('model')} placeholder="e.g. 5075E" style={S.input}/>)}</div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('SERIAL NUMBER', <input value={form.serial_number} onChange={f('serial_number')} placeholder="e.g. 1RW5075E..." style={S.input}/>)}</div>
-          <div>{fld('YEAR', <input value={form.year} onChange={f('year')} type="number" min="1900" max="2099" placeholder="e.g. 2020" style={S.input}/>)}</div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('PURCHASE DATE', <input value={form.purchase_date} onChange={f('purchase_date')} type="date" style={{ ...S.input }}/>)}</div>
-          <div>{fld('PURCHASE PRICE (R)', <input value={form.purchase_price} onChange={f('purchase_price')} type="number" min="0" step="0.01" placeholder="e.g. 450000" style={S.input}/>)}</div>
-        </div>
-        {fld('CONDITION', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:T.controlBg, border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
-        </div>)}
-        {fld('NOTES (optional)', <textarea value={form.notes} onChange={f('notes')} rows={2} placeholder="Any additional details…" style={{ ...S.input, resize:'none' }}/>)}
-        <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-          <button onClick={()=>{ if(!form.name.trim())return; onSave(form); onClose(); }} style={{ ...S.btnPrimary, flex:2 }}>Add Asset</button>
-        </div>
+    <Sheet title="Add asset" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Add asset</button></>}>
+      <Field label="Name" htmlFor="as-name"><input id="as-name" autoFocus value={form.name} onChange={f('name')} placeholder="e.g. John Deere tractor" style={S.input}/></Field>
+      <Field label="Category" htmlFor="as-cat">
+        <select id="as-cat" value={form.category} onChange={f('category')} style={S.input}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+      </Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Make" htmlFor="as-make" style={half}><input id="as-make" value={form.make} onChange={f('make')} style={S.input}/></Field>
+        <Field label="Model" htmlFor="as-model" style={half}><input id="as-model" value={form.model} onChange={f('model')} style={S.input}/></Field>
       </div>
-    </div>
-  );
-}
-
-// ── Service Log Modal ─────────────────────────────────────────────
-function AssetServiceModal({ asset, onSave, onClose }) {
-  const [form, setForm] = useState({
-    doneDate: new Date().toISOString().split('T')[0],
-    description:'', company:'', invoiceNumber:'', invoiceAmount:'', nextService:'',
-    condition: asset.condition || 'good'
-  });
-  const f = key => e => setForm(p=>({...p,[key]:e.target.value}));
-  const fld = (label, child) => <div style={{ marginBottom:'12px' }}><div style={S.fieldLabel}>{label}</div>{child}</div>;
-  return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.card, maxHeight:'90vh' }} onClick={e=>e.stopPropagation()}>
-        <div style={S.mHead}><span style={S.mLabel}>LOG SERVICE — {asset.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-        {fld('DATE SERVICED *', <input type="date" value={form.doneDate} onChange={f('doneDate')} style={{ ...S.input }}/>)}
-        {fld('DESCRIPTION *', <input value={form.description} onChange={f('description')} placeholder="e.g. 500hr service, oil and filters changed" style={S.input}/>)}
-        {fld('COMPANY / TECHNICIAN', <input value={form.company} onChange={f('company')} placeholder="e.g. Deere & Co Service Centre" style={S.input}/>)}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-          <div>{fld('INVOICE NUMBER', <input value={form.invoiceNumber} onChange={f('invoiceNumber')} placeholder="e.g. INV-001" style={S.input}/>)}</div>
-          <div>{fld('INVOICE AMOUNT (R)', <input value={form.invoiceAmount} onChange={f('invoiceAmount')} type="number" min="0" step="0.01" placeholder="e.g. 12500" style={S.input}/>)}</div>
-        </div>
-        {fld('NEXT SERVICE DATE', <input type="date" value={form.nextService} onChange={f('nextService')} style={{ ...S.input }}/>)}
-        {fld('CONDITION AFTER SERVICE', <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {CONDITIONS.map(c=><button key={c.value} onClick={()=>setForm(p=>({...p,condition:c.value}))} style={{ background:form.condition===c.value?`${c.color}30`:T.controlBg, border:`1px solid ${form.condition===c.value?c.color:T.border}`, color:form.condition===c.value?c.color:T.textMid, borderRadius:'5px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans }}>{c.label}</button>)}
-        </div>)}
-        <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-          <button onClick={()=>{ if(!form.description.trim())return; onSave(form); onClose(); }} style={{ ...S.btnPrimary, flex:2 }}>Log Service</button>
-        </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Serial no." htmlFor="as-sn" style={half}><input id="as-sn" value={form.serial_number} onChange={f('serial_number')} style={S.input}/></Field>
+        <Field label="Year" htmlFor="as-yr" style={half}><input id="as-yr" type="number" inputMode="numeric" min="1900" max="2099" value={form.year} onChange={f('year')} style={S.input}/></Field>
       </div>
-    </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Purchase date" htmlFor="as-pd" style={half}><input id="as-pd" type="date" value={form.purchase_date} onChange={f('purchase_date')} style={S.input}/></Field>
+        <Field label="Price, R" htmlFor="as-pp" style={half}><input id="as-pp" type="number" inputMode="decimal" min="0" step="0.01" value={form.purchase_price} onChange={f('purchase_price')} style={S.input}/></Field>
+      </div>
+      <Field label="Condition"><ConditionPicker value={form.condition} onChange={v => setForm(p => ({ ...p, condition: v }))}/></Field>
+      <Field label="Notes (optional)" htmlFor="as-notes"><textarea id="as-notes" rows={2} value={form.notes} onChange={f('notes')} style={S.textarea}/></Field>
+      {err && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
+    </Sheet>
   );
 }
 
-// ── Move Asset Modal ──────────────────────────────────────────────
-function MoveAssetModal({ asset, properties, currentPropertyId, onSave, onClose }) {
-  const [toPropertyId, setToPropertyId] = useState('');
+function AssetServiceSheet({ asset, onSave, onClose }) {
+  const [form, setForm] = useState({ doneDate: todayISO(), description: '', company: '', invoiceNumber: '', invoiceAmount: '', nextService: '', condition: asset.condition || 'good' });
+  const [err, setErr] = useState('');
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const save = async () => {
+    if (!form.description.trim()) { setErr('required'); return; }
+    const res = await onSave(form);
+    if (res?.error) { setErr(res.error.message); return; }
+    onClose();
+  };
+  return (
+    <Sheet title="Log service" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Log service</button></>}>
+      <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{asset.name}</p>
+      <Field label="Date serviced" htmlFor="asl-date"><input id="asl-date" type="date" max={todayISO()} value={form.doneDate} onChange={f('doneDate')} style={S.input}/></Field>
+      <Field label="What was done" htmlFor="asl-desc" error={err === 'required' ? 'required' : ''}>
+        <input id="asl-desc" value={form.description} onChange={e => { f('description')(e); setErr(''); }} placeholder="e.g. 500 hr service, oil and filters" style={{ ...S.input, borderColor: err === 'required' ? T.red : T.border }}/>
+      </Field>
+      <Field label="Company or technician (optional)" htmlFor="asl-co"><input id="asl-co" value={form.company} onChange={f('company')} style={S.input}/></Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Invoice no." htmlFor="asl-inv" style={{ flex: 1, minWidth: 0 }}><input id="asl-inv" value={form.invoiceNumber} onChange={f('invoiceNumber')} style={S.input}/></Field>
+        <Field label="Amount, R" htmlFor="asl-amt" style={{ flex: 1, minWidth: 0 }}><input id="asl-amt" type="number" inputMode="decimal" min="0" step="0.01" value={form.invoiceAmount} onChange={f('invoiceAmount')} style={S.input}/></Field>
+      </div>
+      <Field label="Next service (optional)" htmlFor="asl-next"><input id="asl-next" type="date" value={form.nextService} onChange={f('nextService')} style={S.input}/></Field>
+      <Field label="Condition after service"><ConditionPicker value={form.condition} onChange={v => setForm(p => ({ ...p, condition: v }))}/></Field>
+      {err && err !== 'required' && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
+    </Sheet>
+  );
+}
+
+function MoveAssetSheet({ asset, properties, currentPropertyId, onSave, onClose }) {
+  const [to, setTo] = useState('');
   const [reason, setReason] = useState('');
-  const otherProperties = properties.filter(p => p.id !== currentPropertyId && p.type === 'commercial');
+  const others = properties.filter(p => p.id !== currentPropertyId && p.type === 'commercial');
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={S.card} onClick={e=>e.stopPropagation()}>
-        <div style={S.mHead}><span style={S.mLabel}>MOVE ASSET — {asset.name}</span><button onClick={onClose} style={S.closeBtn}>×</button></div>
-        <div style={{ marginBottom:'12px' }}>
-          <div style={S.fieldLabel}>MOVE TO PROPERTY</div>
-          <select value={toPropertyId} onChange={e=>setToPropertyId(e.target.value)} style={{ ...S.input, appearance:'none', cursor:'pointer' }}>
-            <option value="">— Select property —</option>
-            {otherProperties.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
-          </select>
-        </div>
-        <div style={{ marginBottom:'20px' }}>
-          <div style={S.fieldLabel}>REASON (optional)</div>
-          <input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Needed for ploughing season" style={S.input}/>
-        </div>
-        <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onClose} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-          <button onClick={()=>{ if(!toPropertyId)return; onSave(toPropertyId, reason); onClose(); }} style={{ ...S.btnPrimary, flex:2 }}>Move Asset</button>
-        </div>
-      </div>
-    </div>
+    <Sheet title="Move asset" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button>
+        <button onClick={() => { if (to) { onSave(to, reason); onClose(); } }} disabled={!to} style={{ ...S.btnPrimary, flex: 2, opacity: to ? 1 : 0.5 }}>Move asset</button></>}>
+      <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{asset.name}</p>
+      <Field label="Move to" htmlFor="mv-to">
+        <select id="mv-to" value={to} onChange={e => setTo(e.target.value)} style={S.input}>
+          <option value="">Select a property</option>
+          {others.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </Field>
+      <Field label="Reason (optional)" htmlFor="mv-why"><input id="mv-why" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Needed for ploughing season" style={S.input}/></Field>
+    </Sheet>
   );
 }
 
-// ── Asset Card ────────────────────────────────────────────────────
-function AssetCard({ asset, properties, propertyId, canManage, canDelete, onUpdate, onDelete, onMove, onLogService }) {
-  const [expanded, setExpanded] = useState(false);
-  const [showService, setShowService] = useState(false);
-  const [showMove, setShowMove] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const logs = asset.asset_service_logs || [];
-  const moves = [...(asset.asset_movements || [])].sort((a,b)=>new Date(b.moved_date)-new Date(a.moved_date));
-  const propName = (id) => { const p = (properties||[]).find(x=>x.id===id); return p ? `${p.icon} ${p.name}` : 'Unknown'; };
-  const fmtD = d => d ? new Date(d).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState(null); // 'service' | 'move' | 'delete'
+  const logs = [...(asset.asset_service_logs || [])].sort((a, b) => (a.done_date < b.done_date ? 1 : -1));
+  const moves = [...(asset.asset_movements || [])].sort((a, b) => (a.moved_date < b.moved_date ? 1 : -1));
+  const propName = id => properties.find(p => p.id === id)?.name || 'Unknown';
+  const cond = condition(asset.condition);
+  const facts = [['Serial no.', asset.serial_number], ['Purchased', asset.purchase_date && fmtDate(asset.purchase_date)], ['Price', fmtRand(asset.purchase_price)], ['Notes', asset.notes]].filter(([, v]) => v);
 
   return (
-    <>
-      {showService && <AssetServiceModal asset={asset} onSave={data=>onLogService(asset.id,data)} onClose={()=>setShowService(false)}/>}
-      {showMove && <MoveAssetModal asset={asset} properties={properties} currentPropertyId={propertyId} onSave={(to,reason)=>onMove(asset.id,to,reason)} onClose={()=>setShowMove(false)}/>}
-      {confirming && (
-        <div style={S.overlay} onClick={()=>setConfirming(false)}>
-          <div style={{ ...S.card, maxWidth:'300px', textAlign:'center' }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontSize:'28px', marginBottom:'10px' }}>🗑️</div>
-            <div style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans, marginBottom:'20px' }}>Delete "{asset.name}"?</div>
-            <div style={{ display:'flex', gap:'8px' }}>
-              <button onClick={()=>setConfirming(false)} style={{ ...S.btnGhost, flex:1 }}>Cancel</button>
-              <button onClick={()=>{onDelete(asset.id);setConfirming(false);}} style={{ flex:2, background:T.red, border:'none', color:'#fff', fontWeight:'700', borderRadius:'8px', padding:'11px', cursor:'pointer', fontSize:'13px', fontFamily:T.sans }}>Delete</button>
-            </div>
+    <article style={{ ...S.card, marginBottom: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+          style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px 12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: T.surface2, color: T.textMid, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="truck" size={22}/></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: T.text }}>{asset.name}</div>
+            <div style={S.meta}>{[asset.category, [asset.make, asset.model].filter(Boolean).join(' '), asset.year].filter(Boolean).join(' · ')}</div>
           </div>
+          <Chip tone={cond.tone}>{cond.label}</Chip>
+        </button>
+        <div style={{ paddingRight: 4 }}>
+          <ActionMenu title={asset.name} label={`More actions for ${asset.name}`} items={[
+            perms.canWrite && { icon: 'wrench', label: 'Log service', onClick: () => setSheet('service') },
+            perms.canManage && { icon: 'move', label: 'Move to another property', onClick: () => setSheet('move') },
+            perms.canDelete && { icon: 'trash', label: 'Delete asset', danger: true, onClick: () => setSheet('delete') },
+          ]}/>
         </div>
-      )}
+      </div>
 
-      <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'12px', marginBottom:'10px', overflow:'hidden' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'13px 14px', cursor:'pointer' }} onClick={()=>setExpanded(!expanded)}>
-          <div style={{ width:'40px', height:'40px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, borderRadius:'9px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>
-            {asset.category==='Vehicle'?'🚛':asset.category==='Machinery'?'🚜':asset.category==='Implement'?'🔧':asset.category==='Equipment'?'⚙️':'🔩'}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:'14px', fontWeight:'700', color:T.text, fontFamily:T.sans, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{asset.name}</div>
-            <div style={{ display:'flex', gap:'8px', marginTop:'3px', flexWrap:'wrap', alignItems:'center' }}>
-              <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>{asset.category}</span>
-              {asset.make && <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>{asset.make} {asset.model}</span>}
-              {asset.year && <span style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono }}>{asset.year}</span>}
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px', flexShrink:0 }}>
-            <ConditionBadge condition={asset.condition}/>
-          </div>
-          {canManage && <DotsMenu items={[
-            { icon:<Ic.wrench/>, label:'Log Service', action:()=>setShowService(true) },
-            { icon:<Ic.move/>, label:'Move to Property', action:()=>setShowMove(true) },
-            ...(canDelete ? ['divider', { icon:<Ic.trash/>, label:'Delete Asset', danger:true, action:()=>setConfirming(true) }] : []),
-          ]}/>}
-          <div style={{ color:T.textDim }}>{Ic.chevron(expanded)}</div>
-        </div>
-
-        {expanded && (
-          <div style={{ padding:'0 14px 14px', borderTop:`1px solid ${T.border}`, paddingTop:'12px' }}>
-            {/* Asset details */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'14px' }}>
-              {[
-                ['Serial No.', asset.serial_number],
-                ['Purchase Date', fmtDate(asset.purchase_date)],
-                ['Purchase Price', fmtCurrency(asset.purchase_price)],
-                ['Notes', asset.notes],
-              ].filter(([,v])=>v).map(([label,value])=>(
-                <div key={label} style={{ background:T.controlBgFaint, borderRadius:'6px', padding:'8px 10px' }}>
-                  <div style={{ fontSize:'10px', color:T.textFaint, fontFamily:T.mono, marginBottom:'2px' }}>{label}</div>
-                  <div style={{ fontSize:'12px', color:T.textMid, fontFamily:T.sans }}>{value}</div>
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 14px 14px' }}>
+          {facts.length > 0 && (
+            <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, margin: '0 0 14px' }}>
+              {facts.map(([k, v]) => (
+                <div key={k} style={{ background: T.surface2, borderRadius: 8, padding: '8px 10px', gridColumn: k === 'Notes' ? '1 / -1' : undefined }}>
+                  <dt style={S.meta}>{k}</dt><dd style={{ margin: 0, fontSize: 14, color: T.text }}>{v}</dd>
                 </div>
               ))}
+            </dl>
+          )}
+          <div style={S.fieldLabel}>Service history</div>
+          {logs.length === 0 && <div style={{ ...S.meta, marginBottom: 12 }}>No services logged.</div>}
+          {logs.slice(0, 5).map(l => (
+            <div key={l.id} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: `1px solid ${T.borderLight}`, fontSize: 14 }}>
+              <span style={{ fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{fmtDate(l.done_date)}</span>
+              <span style={{ flex: 1, color: T.textMid }}>{l.description}{l.next_service ? <span style={S.meta}> · next {fmtDate(l.next_service)}</span> : null}</span>
+              {l.invoice_amount && <span style={{ ...S.meta, whiteSpace: 'nowrap' }}>{fmtRand(l.invoice_amount)}</span>}
             </div>
+          ))}
+          {moves.length > 0 && (
+            <>
+              <div style={{ ...S.fieldLabel, marginTop: 12 }}>Movement history</div>
+              {moves.map(m => (
+                <div key={m.id} style={{ padding: '8px 0', borderTop: `1px solid ${T.borderLight}` }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{propName(m.from_property)} → {propName(m.to_property)}</div>
+                  <div style={S.meta}>{fmtDate(m.moved_date)}{m.authoriser?.full_name ? ` · authorised by ${m.authoriser.full_name}` : ''}</div>
+                  {m.reason && <div style={{ fontSize: 14, color: T.textMid, marginTop: 2 }}>“{m.reason}”</div>}
+                </div>
+              ))}
+            </>
+          )}
+          {perms.canWrite && <button onClick={() => setSheet('service')} style={{ ...S.btnOutline, marginTop: 10 }}><Icon name="wrench" size={16}/> Log service</button>}
+        </div>
+      )}
 
-            {/* Service history */}
-            {logs.length > 0 && (
-              <div style={{ marginBottom:'12px' }}>
-                <div style={{ fontSize:'10px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'8px' }}>SERVICE HISTORY</div>
-                {logs.slice(0,3).map(log => (
-                  <div key={log.id} style={{ display:'flex', gap:'10px', padding:'6px 0', borderBottom:`1px solid ${T.border}`, fontSize:'12px' }}>
-                    <span style={{ color:T.accent, fontFamily:T.mono, flexShrink:0 }}>{fmtDate(log.done_date)}</span>
-                    <span style={{ color:T.textMid, fontFamily:T.sans, flex:1 }}>{log.description}</span>
-                    {log.invoice_amount && <span style={{ color:T.textFaint, fontFamily:T.mono }}>{fmtCurrency(log.invoice_amount)}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Movement history */}
-            {moves.length > 0 && (
-              <div style={{ marginBottom:'12px' }}>
-                <div style={{ fontSize:'10px', fontFamily:T.mono, color:T.accent, letterSpacing:'0.08em', marginBottom:'8px' }}>MOVEMENT HISTORY</div>
-                {moves.map(m => (
-                  <div key={m.id} style={{ padding:'6px 0', borderBottom:`1px solid ${T.border}` }}>
-                    <div style={{ fontSize:'12px', color:T.text, fontFamily:T.sans, fontWeight:'600' }}>
-                      {propName(m.from_property)} <span style={{ color:T.textFaint }}>→</span> {propName(m.to_property)}
-                    </div>
-                    <div style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono, marginTop:'2px' }}>
-                      {fmtD(m.moved_date)}
-                      {m.authoriser?.full_name && <span> · authorised by {m.authoriser.full_name}</span>}
-                    </div>
-                    {m.reason && <div style={{ fontSize:'11px', color:T.textMid, fontFamily:T.sans, marginTop:'2px', fontStyle:'italic' }}>“{m.reason}”</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button onClick={()=>setShowService(true)} style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:T.primaryFade, border:`1px solid ${T.primaryBorder}`, color:T.accent, fontSize:'12px', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontFamily:T.sans, fontWeight:'600' }}>
-              <Ic.wrench/> Log Service
-            </button>
-          </div>
-        )}
-      </div>
-    </>
+      {sheet === 'service' && <AssetServiceSheet asset={asset} onClose={() => setSheet(null)}
+        onSave={async d => { const r = await api.logAssetService(asset.id, d); if (!r?.error) onDone(`${asset.name}: service logged`); return r; }}/>}
+      {sheet === 'move' && <MoveAssetSheet asset={asset} properties={properties} currentPropertyId={propertyId} onClose={() => setSheet(null)}
+        onSave={(to, reason) => api.moveAsset(asset.id, to, reason).then(() => onDone(`${asset.name} moved to ${propName(to)}`))}/>}
+      {sheet === 'delete' && <ConfirmSheet title={`Delete “${asset.name}”?`} body="This can't be undone." onConfirm={() => api.deleteAsset(asset.id)} onClose={() => setSheet(null)}/>}
+    </article>
   );
 }
 
-// ── Main AssetsTab ────────────────────────────────────────────────
 export default function AssetsTab({ property, properties }) {
-  const { canManage, isAdmin, canDelete } = useAuth();
-  const { assets, loading, addAsset, updateAsset, deleteAsset, moveAsset, logAssetService } = useAssets(property.id);
+  const { canManage, canWrite, canDelete } = useAuth();
+  const api = useAssets(property.id);
+  const { assets, loading } = api;
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [toast, setToast] = useState('');
 
-  const categories = ['all', ...new Set(assets.map(a=>a.category))];
-  const filtered = filter==='all' ? assets : assets.filter(a=>a.category===filter);
+  if (loading) return <Loading label="Loading assets…"/>;
 
-  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:T.textDim, fontFamily:T.mono, fontSize:'13px' }}>Loading assets…</div>;
+  const categories = ['all', ...new Set(assets.map(a => a.category).filter(Boolean))];
+  const filtered = filter === 'all' ? assets : assets.filter(a => a.category === filter);
+  const attention = assets.filter(a => a.condition === 'needs_attention' || a.condition === 'out_of_service').length;
+  const tiles = [['Assets', assets.length, T.text], ['Good', assets.filter(a => a.condition === 'good').length, T.ok], ['Need attention', attention, T.red]];
 
   return (
     <div>
-      {adding && <AddAssetModal onSave={data=>addAsset(data)} onClose={()=>setAdding(false)}/>}
-
-      {/* Summary */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'8px', marginBottom:'16px' }}>
-        {[
-          { label:'Total Assets', value:assets.length, color:T.accent },
-          { label:'Good Condition', value:assets.filter(a=>a.condition==='good').length, color:'#95D5B2' },
-          { label:'Needs Attention', value:assets.filter(a=>a.condition==='needs_attention'||a.condition==='out_of_service').length, color:T.red },
-        ].map(s=>(
-          <div key={s.label} style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:'8px', padding:'10px 12px', textAlign:'center' }}>
-            <div style={{ fontSize:'22px', fontWeight:'700', color:s.color, fontFamily:T.sans }}>{s.value}</div>
-            <div style={{ fontSize:'10px', color:T.textDim, fontFamily:T.mono, marginTop:'2px' }}>{s.label}</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {tiles.map(([label, n, color]) => (
+          <div key={label} style={{ ...S.card, flex: 1, minWidth: 0, padding: '12px 14px' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: n ? color : T.textDim }}>{n}</div>
+            <div style={{ ...S.meta, marginTop: 2 }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Category filter */}
-      {categories.length > 1 && (
-        <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
-          {categories.map(c=>(
-            <button key={c} onClick={()=>setFilter(c)} style={{ background:filter===c?T.primary:T.controlBg, border:'none', color:filter===c?T.text:T.textDim, borderRadius:'5px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontFamily:T.sans, textTransform:'capitalize', fontWeight:filter===c?'700':'400' }}>
-              {c}
-            </button>
-          ))}
+      {categories.length > 2 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          {categories.map(c => {
+            const on = filter === c;
+            return (
+              <button key={c} onClick={() => setFilter(c)} aria-pressed={on}
+                style={{ height: 36, padding: '0 14px', borderRadius: 18, flexShrink: 0, cursor: 'pointer', fontFamily: T.sans, fontSize: 14, fontWeight: on ? 600 : 500,
+                  background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}` }}>
+                {c === 'all' ? 'All' : c}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Asset list */}
-      {filtered.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'50px 20px', color:T.textFaint, fontFamily:T.mono, fontSize:'13px' }}>
-          {assets.length===0 ? 'No assets registered yet' : 'No assets in this category'}
-        </div>
-      ) : filtered.map(asset => (
-        <AssetCard key={asset.id} asset={asset} properties={properties} propertyId={property.id}
-          canManage={canManage||isAdmin} canDelete={canDelete||isAdmin}
-          onUpdate={updateAsset} onDelete={deleteAsset}
-          onMove={moveAsset} onLogService={logAssetService}
-        />
-      ))}
+      {filtered.length === 0 ? <Empty>{assets.length === 0 ? 'No assets registered yet.' : 'No assets in this category.'}</Empty>
+        : filtered.map(a => (
+          <AssetCard key={a.id} asset={a} properties={properties || []} propertyId={property.id} perms={{ canManage, canWrite, canDelete }} api={api} onDone={setToast}/>
+        ))}
 
-      {/* Add asset button */}
-      {(canManage||isAdmin) && (
-        <button onClick={()=>setAdding(true)} style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:'none', border:`1px dashed ${T.primary}`, color:T.accent, fontSize:'12px', borderRadius:'6px', padding:'6px 14px', cursor:'pointer', fontFamily:T.sans, marginTop:'10px', fontWeight:'600' }}>
-          {Ic.plus(11)} Add Asset
-        </button>
-      )}
+      {canManage && <button onClick={() => setAdding(true)} style={{ ...S.btnDashed, marginTop: 6 }}><Icon name="plus" size={18}/> Add asset</button>}
+      {adding && <AddAssetSheet onSave={api.addAsset} onClose={() => setAdding(false)}/>}
+      {toast && <Toast message={toast} onDismiss={() => setToast('')}/>}
     </div>
   );
 }

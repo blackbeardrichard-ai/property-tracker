@@ -3,20 +3,24 @@ import { useAuth } from '../context/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { T, S } from '../lib/theme';
+import { LocationField, PROPERTY_ICONS } from './property/PropertyDetails';
+import { parseLocation, isLink } from '../lib/location';
 import { Icon, PageHeader, Page, PropertyBadge, Chip, Segmented, Field, Sheet, SectionLabel, Loading, Empty } from '../components/ui';
 
-const ICONS = ['🏠', '🌾', '🌿', '🏡', '🏗️', '🏢', '🌲', '🏕️', '🌴', '🏔️'];
+const ICONS = PROPERTY_ICONS;
 const CHIP = { minHeight: 36, padding: '0 12px', fontSize: 13 };
 const initials = name => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
 function AddPropertySheet({ onSave, onClose }) {
-  const [form, setForm] = useState({ name: '', type: 'residential', icon: '', address: '', description: '' });
+  const [form, setForm] = useState({ name: '', type: 'residential', icon: '', address: '', description: '', map_location: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const save = async () => {
     if (!form.name.trim()) { setError('Name is required.'); return; }
+    const pin = form.map_location.trim();
+    if (pin && !parseLocation(pin) && !isLink(pin)) { setError('The map pin isn’t a link or coordinates.'); return; }
     setSaving(true); setError('');
-    const { error: err } = await onSave({ ...form, name: form.name.trim(), icon: form.icon || (form.type === 'commercial' ? '🌾' : '🏠') });
+    const { error: err } = await onSave({ ...form, map_location: form.map_location.trim() || null, name: form.name.trim(), icon: form.icon || (form.type === 'commercial' ? '🌾' : '🏠') });
     setSaving(false);
     if (err) { setError(err.message); return; }
     onClose();
@@ -44,6 +48,7 @@ function AddPropertySheet({ onSave, onClose }) {
       <Field label="Address (optional)" htmlFor="prop-addr">
         <input id="prop-addr" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="e.g. Alldays, Limpopo" style={S.input}/>
       </Field>
+      <LocationField value={form.map_location} onChange={v => setForm(p => ({ ...p, map_location: v }))}/>
       {error && <div role="alert" style={{ color: T.red, fontSize: 14, padding: '10px 12px', background: T.redFade, borderRadius: 8 }}>{error}</div>}
     </Sheet>
   );

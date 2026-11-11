@@ -40,6 +40,8 @@ const PATHS = {
   activity: <path d="M3 12h4l3-8 4 16 3-8h4"/>,
   users:    <><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 13.7c2 .9 3.5 3 3.5 5.3"/></>,
   move:     <><path d="M5 12h14M15 8l4 4-4 4"/></>,
+  pin:      <><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></>,
+  map:      <><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></>,
 };
 
 export function Icon({ name, size = 20, color, style }) {

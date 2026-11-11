@@ -15,7 +15,7 @@ import { T } from './lib/theme';
 
 function Inner() {
   const { user, loading, mustChangePassword } = useAuth();
-  const { properties } = useProperties();
+  const { properties, updateProperty } = useProperties();
   const [view, setView] = useState('properties'); // properties | property | settings
   const [activeProperty, setActiveProperty] = useState(null);
   const [selectedTab, setSelectedTab] = useState(undefined);
@@ -72,6 +72,11 @@ function Inner() {
       properties={properties}
       onBack={() => { setActiveProperty(null); setSelectedTab(undefined); setView('properties'); }}
       initialTab={selectedTab}
+      onSaveProperty={async updates => {
+        const res = await updateProperty(activeProperty.id, updates);
+        if (!res.error) setActiveProperty(p => ({ ...p, ...updates }));
+        return res;
+      }}
     />
   );
 

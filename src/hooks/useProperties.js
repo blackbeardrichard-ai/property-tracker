@@ -35,10 +35,10 @@ export function useProperties() {
 
   useEffect(() => { fetchProperties(); }, [fetchProperties]);
 
-  const addProperty = async ({ name, type, icon, address, description }) => {
-    const { data, error: err } = await supabase.from('properties').insert({
-      name, type, icon, address, description, created_by: user.id
-    }).select().single();
+  const addProperty = async ({ name, type, icon, address, description, map_location }) => {
+    const row = { name, type, icon, address, description, created_by: user.id };
+    if (map_location) row.map_location = map_location; // column added by supabase/sql/2026-11-11_property_map_location.sql
+    const { data, error: err } = await supabase.from('properties').insert(row).select().single();
     if (err) return { error: err };
     await logAction({ propertyId:data.id, userId:user.id, userName:profile?.full_name, action:'created', entityType:'property', entityId:data.id, entityName:name });
     await fetchProperties();

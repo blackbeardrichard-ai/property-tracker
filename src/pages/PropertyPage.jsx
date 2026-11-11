@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useServices } from '../hooks/useServices';
 import { useRooms } from '../hooks/useRooms';
@@ -9,6 +9,9 @@ import TasksTab from './property/TasksTab';
 import ServicesTab from './property/ServicesTab';
 import ShoppingTab from './property/ShoppingTab';
 import RoomsTab from './property/RoomsTab';
+import MapTab from './property/MapTab';
+import { PropertyDetailsSheet } from './property/PropertyDetails';
+import { useAuth } from '../context/AuthContext';
 
 // Commercial-only tabs are loaded on demand.
 const AssetsTab = lazy(() => import('./AssetsTab'));
@@ -21,8 +24,9 @@ const MAIN_TABS = [
   { id: 'rooms',    label: 'Rooms',    icon: 'rooms' },
 ];
 const MORE_TABS = [
-  { id: 'assets',    label: 'Asset register', short: 'Assets', icon: 'box' },
-  { id: 'livestock', label: 'Livestock',      icon: 'cow' },
+  { id: 'map',       label: 'Map',            icon: 'map' },
+  { id: 'assets',    label: 'Asset register', short: 'Assets', icon: 'box', commercial: true },
+  { id: 'livestock', label: 'Livestock',      icon: 'cow', commercial: true },
 ];
 
 function Badge({ n, tone }) {
@@ -51,11 +55,16 @@ function TabButton({ tab, active, badge, badgeTone, onClick }) {
   );
 }
 
-export default function PropertyPage({ property, properties, onBack, initialTab }) {
+export default function PropertyPage({ property, properties, onBack, initialTab, onSaveProperty }) {
+  const { isAdmin } = useAuth();
   const isCommercial = property.type === 'commercial';
-  const allowed = [...MAIN_TABS, ...(isCommercial ? MORE_TABS : [])].map(t => t.id);
+  const moreTabs = MORE_TABS.filter(t => !t.commercial || isCommercial);
+  const allowed = [...MAIN_TABS, ...moreTabs].map(t => t.id);
   const [tab, setTab] = useState(allowed.includes(initialTab) ? initialTab : 'tasks');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  // If the property's type changes, leave a tab it no longer has.
+  useEffect(() => { if (!allowed.includes(tab)) setTab('tasks'); }, [allowed.join(), tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetched once here and shared by the tabs, so badges stay live as things change.
   const tasksApi = useTasks(property.id);
@@ -65,7 +74,7 @@ export default function PropertyPage({ property, properties, onBack, initialTab 
   const overdue = servicesApi.services.filter(s => serviceState(s) === 'overdue').length;
   const toBuy = tasksApi.tasks.flatMap(t => (t.subtasks || []).flatMap(s => s.materials || [])).filter(isToBuy).length;
   const current = [...MAIN_TABS, ...MORE_TABS].find(t => t.id === tab);
-  const inMore = MORE_TABS.some(t => t.id === tab);
+  const inMore = moreTabs.some(t => t.id === tab);
   const typeLabel = isCommercial ? 'Commercial' : 'Residential';
 
   const select = id => { setTab(id); setMoreOpen(false); window.scrollTo(0, 0); };
@@ -79,6 +88,7 @@ export default function PropertyPage({ property, properties, onBack, initialTab 
         {tab === 'services' && <ServicesTab servicesApi={servicesApi}/>}
         {tab === 'shopping' && <ShoppingTab property={property} tasksApi={tasksApi}/>}
         {tab === 'rooms'    && <RoomsTab roomsApi={roomsApi} tasks={tasksApi.tasks}/>}
+        {tab === 'map'      && <MapTab property={property} canEdit={isAdmin} onEdit={() => setEditing(true)}/>}
         <Suspense fallback={<Loading/>}>
           {tab === 'assets'    && <AssetsTab property={property} properties={properties || []}/>}
           {tab === 'livestock' && <LivestockTab property={property}/>}
@@ -93,24 +103,28 @@ export default function PropertyPage({ property, properties, onBack, initialTab 
               badge={t.id === 'services' ? overdue : t.id === 'shopping' ? toBuy : 0}
               badgeTone={t.id === 'services' ? 'red' : 'primary'}/>
           ))}
-          {isCommercial && (
-            <TabButton tab={inMore ? current : { id: 'more', label: 'More', icon: 'more' }} active={inMore} onClick={() => setMoreOpen(true)}/>
-          )}
+          <TabButton tab={inMore ? current : { id: 'more', label: 'More', icon: 'more' }} active={inMore} onClick={() => setMoreOpen(true)}/>
         </div>
       </nav>
 
       {moreOpen && (
         <Sheet title="More" onClose={() => setMoreOpen(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {MORE_TABS.map(t => (
+            {moreTabs.map(t => (
               <button key={t.id} onClick={() => select(t.id)}
                 style={{ ...S.menuItem, minHeight: 56, background: tab === t.id ? T.primaryFade : 'none', color: tab === t.id ? T.primary : T.text, fontWeight: tab === t.id ? 600 : 500 }}>
                 <Icon name={t.icon} size={22} color={tab === t.id ? T.primary : T.textMid}/> {t.label}
               </button>
             ))}
+            {isAdmin && onSaveProperty && (
+              <button onClick={() => { setMoreOpen(false); setEditing(true); }} style={{ ...S.menuItem, minHeight: 56, borderTop: `1px solid ${T.borderLight}`, borderRadius: 0, marginTop: 4 }}>
+                <Icon name="pencil" size={22} color={T.textMid}/> Property details
+              </button>
+            )}
           </div>
         </Sheet>
       )}
+      {editing && <PropertyDetailsSheet property={property} onSave={onSaveProperty} onClose={() => setEditing(false)}/>}
     </div>
   );
 }

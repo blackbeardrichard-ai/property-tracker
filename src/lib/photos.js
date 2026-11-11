@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { queuedUpload } from './offline';
 
 // Photos live in the private "photos" bucket at <property>/<what>/<id>/<file>.jpg,
 // with a row in the photos table saying what they belong to.
@@ -54,6 +55,14 @@ export async function photoUrls(paths) {
       const { data } = await supabase.storage.from('photos').createSignedUrls(need, 3600);
       (data || []).forEach(d => { if (d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 50 * 60 * 1000 }); });
     } catch { /* no signal */ }
+  }
+  // Without signal: photos still waiting to be uploaded, and photos looked at before (kept on the phone).
+  for (const p of paths) {
+    if (local.has(p) || signed.get(p)?.until > now) continue;
+    const blob = await queuedUpload(p);
+    if (blob) { local.set(p, URL.createObjectURL(blob)); continue; }
+    const kept = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/sign/photos/${p}`;
+    try { if (typeof caches !== 'undefined' && await caches.match(kept)) signed.set(p, { url: kept, until: now + 5 * 60 * 1000 }); } catch { /* no cache */ }
   }
   return Object.fromEntries(paths.map(p => [p, local.get(p) || signed.get(p)?.url || null]));
 }

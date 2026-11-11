@@ -1,8 +1,22 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { syncNow, setCurrentUser, clearLocal, subscribeSync } from '../lib/offline';
 import { CAPABILITY_DEFAULTS } from '../lib/permissions';
 
 const AuthCtx = createContext(null);
+
+// The sign-in saved on this phone. Without signal an expired sign-in can't be renewed, and the
+// library then reports no session; the saved one is still this user, so keep working with it.
+// (It is only removed from the phone on sign-out or when the server refuses it.)
+function savedSession() {
+  try {
+    const v = JSON.parse(localStorage.getItem(supabase.auth.storageKey) || 'null');
+    const sess = v?.currentSession || v;
+    return sess?.user?.id && sess?.refresh_token ? sess : null;
+  } catch { return null; }
+}
+let pendingNow = 0;
+subscribeSync(st => { pendingNow = st.pending; });
 export const useAuth = () => useContext(AuthCtx);
 
 export function AuthProvider({ children }) {
@@ -36,16 +50,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+    const use = (session, event) => {
+      const s = session || (event === 'SIGNED_OUT' ? null : savedSession());
+      setUser(s?.user ?? null);
+      setCurrentUser(s?.user?.id);
+      if (s?.user) { fetchProfile(s.user.id); if (session) syncNow(); }
       else { setProfile(null); setOverrides({}); setLoading(false); }
-    });
+    };
+    supabase.auth.getSession().then(({ data }) => use(data?.session, 'INITIAL')).catch(() => use(null, 'INITIAL'));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => use(session, event));
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
 
@@ -56,13 +69,16 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    if (pendingNow > 0 && !window.confirm(`${pendingNow} change${pendingNow === 1 ? '' : 's'} made without signal ${pendingNow === 1 ? 'hasn’t' : 'haven’t'} been sent yet. Signing out now loses ${pendingNow === 1 ? 'it' : 'them'}. Sign out anyway?`)) return;
     await supabase.auth.signOut();
+    await clearLocal();   // nothing of this user's stays on the phone
     setUser(null); setProfile(null);
   }
 
   // Revoke ALL sessions for this user across every device, then clear local state.
   async function signOutEverywhere() {
     const { error } = await supabase.auth.signOut({ scope: 'global' });
+    if (!error) await clearLocal();
     setUser(null); setProfile(null);
     return { error };
   }

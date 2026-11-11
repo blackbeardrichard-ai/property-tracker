@@ -37,7 +37,8 @@ export default function SyncBanner() {
     tone = 'red'; text = `${s.failed} change${s.failed === 1 ? '' : 's'} couldn’t be saved`;
     action = <button onClick={() => setFailedOpen(true)} style={{ ...S.btnOutline, height: 32, marginLeft: 'auto', color: T.red, borderColor: T.redBorder }}>Details</button>;
   } else if (!s.online) {
-    tone = 'warn'; text = s.pending ? `No signal · ${s.pending} change${s.pending === 1 ? '' : 's'} saved on this phone, sent when you’re back online` : 'No signal · showing what was last loaded on this phone';
+    const as = s.lastSync ? ` (copy from ${new Date(s.lastSync).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : '';
+    tone = 'warn'; text = s.pending ? `No signal · ${s.pending} change${s.pending === 1 ? '' : 's'} saved on this phone, sent when you’re back online` : `No signal · working from the copy on this phone${as}`;
   } else if (s.pending > 0) {
     tone = 'info'; text = `Sending ${s.pending} change${s.pending === 1 ? '' : 's'}…`;
     if (!s.syncing) action = <button onClick={() => flushQueue()} style={{ ...S.btnOutline, height: 32, marginLeft: 'auto' }}>Send now</button>;

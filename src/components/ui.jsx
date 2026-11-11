@@ -246,7 +246,7 @@ export function Tiles({ items }) {
     <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
       {items.map(([n, l, c]) => (
         <div key={l} style={{ ...S.card, flex: 1, minWidth: 0, padding: '12px 14px' }}>
-          <div style={{ fontSize: String(n).length > 8 ? 16 : String(n).length > 6 ? 18 : 22, fontWeight: 700, lineHeight: 1.25, color: n && n !== '0' ? (c || T.text) : T.textDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</div>
+          <div style={{ fontSize: String(n).length > 7 ? 16 : String(n).length > 5 ? 19 : 22, fontWeight: 700, lineHeight: 1.25, color: n && n !== '0' ? (c || T.text) : T.textDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</div>
           <div style={{ ...S.meta, marginTop: 2 }}>{l}</div>
         </div>
       ))}

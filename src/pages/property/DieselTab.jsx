@@ -22,20 +22,90 @@ export function tankLevel(tankId, log) {
   return level;
 }
 
+const n0 = v => Number(v).toLocaleString('en-ZA', { maximumFractionDigits: 1 });
+// Hours: litres per hour. Km: litres per 100 km.
+export const fmtRate = (litres, used, type) => (type === 'km' ? `${n0((litres / used) * 100)} L/100 km` : `${n0(litres / used)} L/h`);
+
+// Fuel into one machine over a period. Consumption uses the fill-to-fill method: the litres put in at a
+// fill replace what was burnt since the previous fill, so each fill is divided by the hours/km since the last one.
+export function machineStats(asset, log, since) {
+  const fills = log.filter(e => e.kind === 'issue' && e.asset_id === asset.id).sort(byTime);
+  const inPeriod = fills.filter(e => e.entry_date >= since);
+  let fuel = 0, used = 0;
+  const rows = fills.map((e, i) => {
+    const prev = fills.slice(0, i).reverse().find(x => x.meter_reading != null);
+    const d = prev && e.meter_reading != null ? Number(e.meter_reading) - Number(prev.meter_reading) : null;
+    if (e.entry_date >= since && d > 0) { fuel += Number(e.litres); used += d; }
+    return { ...e, used: d > 0 ? d : null };
+  });
+  return {
+    litres: inPeriod.reduce((a, e) => a + Number(e.litres), 0), fills: inPeriod.length,
+    used, rate: used > 0 ? fuel / used : null, rows: rows.filter(r => r.entry_date >= since).reverse(),
+  };
+}
+
+function MachineFuel({ assets, log, since }) {
+  const [open, setOpen] = useState(null);
+  const list = assets.map(a => ({ a, s: machineStats(a, log, since) })).filter(x => x.s.fills > 0).sort((x, y) => y.s.litres - x.s.litres);
+  if (!list.length) return <div style={{ ...S.meta, marginBottom: 20 }}>No diesel issued to machines in this period.</div>;
+  return (
+    <div style={{ ...S.card, overflow: 'hidden', marginBottom: 20 }}>
+      {list.map(({ a, s }, i) => {
+        const u = a.meter_type === 'km' ? 'km' : 'h';
+        return (
+          <div key={a.id} style={{ borderTop: i ? `1px solid ${T.borderLight}` : 'none' }}>
+            <button onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '8px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, color: T.text }}>{a.name}</div>
+                <div style={S.meta}>{s.fills} fill{s.fills === 1 ? '' : 's'}{s.used > 0 ? ` · ${n0(s.used)} ${u} worked` : ''}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>{L(s.litres)}</div>
+                <div style={{ ...S.meta, color: s.rate ? T.text : S.meta.color, fontWeight: s.rate ? 600 : 400 }}>{s.rate ? fmtRate(s.rate * s.used, s.used, a.meter_type) : 'needs 2 fills'}</div>
+              </div>
+            </button>
+            {open === a.id && (
+              <div style={{ padding: '0 14px 10px' }}>
+                {s.rows.map(r => (
+                  <div key={r.id} style={{ display: 'flex', gap: 8, padding: '6px 0', borderTop: `1px solid ${T.borderLight}`, fontSize: 14 }}>
+                    <span style={{ flex: 1, color: T.textMid }}>{fmtDate(r.entry_date)}{r.meter_reading != null ? ` · at ${n0(r.meter_reading)} ${u}` : ' · no reading'}</span>
+                    <span>{L(r.litres)}</span>
+                    <span style={{ width: 92, textAlign: 'right', color: T.textMid }}>{r.used ? fmtRate(Number(r.litres), r.used, a.meter_type) : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function EntrySheet({ kind, tanks, assets, onSave, onClose, onChooseMachines }) {
-  const [f, setF] = useState({ tank_id: tanks[0]?.id || '', asset_id: '', litres: '', price_excl: '', meter_reading: '', entry_date: todayISO(), notes: '' });
+  const [f, setF] = useState({ tank_id: tanks[0]?.id || '', asset_id: '', litres: '', price_excl: '', meter_reading: '', entry_date: todayISO(), notes: '', meter_type: '' });
   const [e, setE] = useState('');
   const set = k => ev => setF(p => ({ ...p, [k]: ev.target.value }));
   const asset = assets.find(a => a.id === f.asset_id);
+  // Hours or km: from the machine if known, otherwise chosen here (vehicles default to km) and saved on the machine.
+  const meterType = asset ? (asset.meter_type || f.meter_type || (asset.category === 'Vehicle' ? 'km' : 'hours')) : null;
+  const unit = meterType === 'km' ? 'km' : 'h';
   const title = { fill: 'Diesel delivered', issue: 'Diesel issued', dip: 'Tank dip reading' }[kind];
   const save = async () => {
     if (f.litres === '' || Number(f.litres) < 0) { setE('Enter the litres.'); return; }
     if (kind !== 'issue' && !f.tank_id) { setE('Choose the tank.'); return; }
     if (kind === 'issue' && !f.asset_id && !f.notes.trim()) { setE('Choose the vehicle or machine, or say what it was for.'); return; }
+    if (kind === 'issue' && asset) {
+      if (f.meter_reading === '') { setE(`Enter the ${meterType === 'km' ? 'odometer (km)' : 'hour meter'} reading at this fill.`); return; }
+      if (asset.meter_reading != null && Number(f.meter_reading) < Number(asset.meter_reading)) {
+        setE(`That's lower than the last reading (${Number(asset.meter_reading).toLocaleString('en-ZA')} ${unit}). Check the meter.`); return;
+      }
+    }
     const num = v => (v === '' ? null : Number(v));
     const res = await onSave({ kind, tank_id: f.tank_id || null, asset_id: f.asset_id || null, litres: Number(f.litres),
       price_excl: kind === 'fill' ? num(f.price_excl) : null, meter_reading: kind === 'issue' ? num(f.meter_reading) : null,
-      entry_date: f.entry_date, notes: f.notes.trim() || null }, asset);
+      entry_date: f.entry_date, notes: f.notes.trim() || null }, asset, asset && !asset.meter_type ? meterType : null);
     if (res?.error) { setE(res.error.message); return; }
     onClose();
   };
@@ -73,10 +143,20 @@ function EntrySheet({ kind, tanks, assets, onSave, onClose, onChooseMachines }) 
           <input id="dl-p" type="number" inputMode="decimal" min="0" step="0.01" value={f.price_excl} onChange={set('price_excl')} style={S.input}/>
         </Field>
       )}
-      {kind === 'issue' && asset?.meter_type && (
-        <Field label={`${asset.meter_type === 'km' ? 'Odometer, km' : 'Hour meter, h'}`} htmlFor="dl-m" hint={asset.meter_reading != null ? `Last: ${Number(asset.meter_reading).toLocaleString('en-ZA')}` : null}>
-          <input id="dl-m" type="number" inputMode="decimal" min="0" value={f.meter_reading} onChange={set('meter_reading')} style={S.input}/>
-        </Field>
+      {kind === 'issue' && asset && (
+        <>
+          {!asset.meter_type && (
+            <Field label="This machine is measured in">
+              <Segmented label="Meter" value={meterType} onChange={v => setF(p => ({ ...p, meter_type: v }))} options={[['hours', 'Engine hours'], ['km', 'Kilometres']]}/>
+            </Field>
+          )}
+          <Field label={meterType === 'km' ? 'Odometer now, km' : 'Hour meter now, h'} htmlFor="dl-m"
+            hint={asset.meter_reading != null
+              ? `Last: ${Number(asset.meter_reading).toLocaleString('en-ZA')} ${unit}${f.meter_reading !== '' && Number(f.meter_reading) >= Number(asset.meter_reading) ? ` · ${(Number(f.meter_reading) - Number(asset.meter_reading)).toLocaleString('en-ZA')} ${unit} since then` : ''}`
+              : 'Needed to work out consumption and when the next service is due.'}>
+            <input id="dl-m" type="number" inputMode="decimal" min="0" value={f.meter_reading} onChange={set('meter_reading')} style={S.input}/>
+          </Field>
+        </>
       )}
       <Field label="Notes (optional)" htmlFor="dl-n"><input id="dl-n" value={f.notes} onChange={set('notes')} placeholder={kind === 'fill' ? 'e.g. Supplier, delivery note no.' : ''} style={S.input}/></Field>
       {e && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{e}</div>}
@@ -165,15 +245,26 @@ export default function DieselTab({ property }) {
   if (tanksApi.loading || logApi.loading) return <Loading label="Loading diesel…"/>;
   if (tanksApi.missing || logApi.missing) return <SetupNote what="The diesel log"/>;
 
-  const save = async (row, asset) => {
+  const save = async (row, asset, newMeterType) => {
     const res = await logApi.add(row, `${row.kind} ${row.litres} L`);
     if (res.error) return res;
-    if (row.kind === 'issue' && asset && row.meter_reading != null && (asset.meter_reading == null || row.meter_reading >= asset.meter_reading)) {
+    let msg = { fill: `${L(row.litres)} delivered`, issue: `${L(row.litres)} issued`, dip: `Tank set to ${L(row.litres)}` }[row.kind];
+    if (row.kind === 'issue' && asset && row.meter_reading != null) {
+      const type = asset.meter_type || newMeterType;
+      const patch = { meter_reading: row.meter_reading, meter_date: row.entry_date, ...(newMeterType ? { meter_type: newMeterType } : {}) };
       await supabase.from('meter_readings').insert({ property_id: property.id, asset_id: asset.id, reading: row.meter_reading, read_on: row.entry_date });
-      await supabase.from('assets').update({ meter_reading: row.meter_reading, meter_date: row.entry_date }).eq('id', asset.id);
-      setAssets(as => as.map(a => (a.id === asset.id ? { ...a, meter_reading: row.meter_reading } : a)));
+      await supabase.from('assets').update(patch).eq('id', asset.id);
+      setAssets(as => as.map(a => (a.id === asset.id ? { ...a, ...patch } : a)));
+      // Consumption since the previous fill of this machine, and the next service.
+      const prev = log.filter(e => e.kind === 'issue' && e.asset_id === asset.id && e.meter_reading != null).sort(byTime).pop();
+      const used = prev ? row.meter_reading - Number(prev.meter_reading) : 0;
+      if (used > 0) msg += ` · ${fmtRate(row.litres, used, type)}`;
+      if (asset.next_service_meter != null) {
+        const left = Number(asset.next_service_meter) - row.meter_reading;
+        msg += left <= 0 ? ` · service overdue by ${n0(-left)} ${type === 'km' ? 'km' : 'h'}` : ` · service in ${n0(left)} ${type === 'km' ? 'km' : 'h'}`;
+      }
     }
-    setToast({ fill: `${L(row.litres)} delivered`, issue: `${L(row.litres)} issued`, dip: `Tank set to ${L(row.litres)}` }[row.kind]);
+    setToast(msg);
     return {};
   };
 
@@ -187,6 +278,9 @@ export default function DieselTab({ property }) {
           <button onClick={() => setSheet('fill')} disabled={!tanksApi.rows.length} style={{ ...S.btnGhost, flex: 1, opacity: tanksApi.rows.length ? 1 : 0.5 }}><Icon name="plus" size={18}/> Delivery</button>
         </div>
       )}
+
+      <SectionLabel style={{ marginBottom: 8 }}>Fuel by machine</SectionLabel>
+      <MachineFuel assets={assets} log={log} since={since}/>
 
       <SectionLabel style={{ marginBottom: 8 }}>Tanks</SectionLabel>
       {tanksApi.rows.length === 0 && <div style={{ ...S.meta, marginBottom: 8 }}>No farm tank yet. Add one to track deliveries and what's left.</div>}

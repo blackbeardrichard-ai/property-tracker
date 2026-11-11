@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { T, S } from '../lib/theme';
+import { fmtDate, daysUntil, freqLabel, plural } from '../lib/format';
 import { LocationField, PROPERTY_ICONS } from './property/PropertyDetails';
 import { parseLocation, isLink } from '../lib/location';
 import { Icon, PageHeader, Page, PropertyBadge, Chip, Segmented, Field, Sheet, SectionLabel, Loading, Empty } from '../components/ui';
@@ -54,12 +55,68 @@ function AddPropertySheet({ onSave, onClose }) {
   );
 }
 
-function Tile({ n, label, color }) {
+function Tile({ n, label, color, onClick }) {
   return (
-    <div style={{ ...S.card, flex: 1, minWidth: 0, padding: '12px 14px' }}>
-      <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: n ? color : T.textDim }}>{n}</div>
+    <button onClick={onClick} disabled={!n} aria-label={`${n} ${label}${n ? ', show list' : ''}`}
+      style={{ ...S.card, flex: 1, minWidth: 0, padding: '12px 14px', textAlign: 'left', fontFamily: T.sans, cursor: n ? 'pointer' : 'default', display: 'block' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: n ? color : T.textDim, flex: 1 }}>{n}</span>
+        {n > 0 && <Icon name="chevronR" size={16} color={T.textDim}/>}
+      </div>
       <div style={{ ...S.meta, marginTop: 2 }}>{label}</div>
-    </div>
+    </button>
+  );
+}
+
+// Everything behind a home tile, grouped by property. Tapping a row opens that property on the right tab.
+const CATEGORY = {
+  overdue:     { title: 'Overdue services', tab: 'services' },
+  toBuy:       { title: 'To buy',           tab: 'shopping' },
+  unscheduled: { title: 'Services with no due date', tab: 'services' },
+};
+function CategorySheet({ kind, items, properties, onOpen, onClose }) {
+  const cfg = CATEGORY[kind];
+  const groups = properties.map(p => ({ p, list: items.filter(i => i.property_id === p.id) })).filter(g => g.list.length);
+  const line = i => {
+    if (kind === 'overdue') {
+      const d = -daysUntil(i.next_due);
+      return { main: i.name, sub: `${plural(d, 'day')} overdue · was due ${fmtDate(i.next_due)}`, subColor: T.red };
+    }
+    if (kind === 'toBuy') {
+      return { main: i.name, sub: [i.qty ? `${i.qty} ${i.unit || ''}`.trim() : '', i.status === 'ordered' ? 'Ordered' : 'Needed'].filter(Boolean).join(' · ') };
+    }
+    return { main: i.name, sub: freqLabel(i.freq_months, i.is_recurring) };
+  };
+  return (
+    <Sheet title={`${cfg.title} (${items.length})`} onClose={onClose}>
+      {groups.map(({ p, list }) => (
+        <section key={p.id} style={{ marginBottom: 16 }}>
+          <button onClick={() => onOpen(p, cfg.tab)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.sans, textAlign: 'left' }}>
+            <PropertyBadge property={p} size={28}/>
+            <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: T.text }}>{p.name}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: T.primary }}>Open</span>
+            <Icon name="chevronR" size={16} color={T.primary}/>
+          </button>
+          <div style={{ ...S.card, overflow: 'hidden', marginTop: 4 }}>
+            {list.map((i, k) => {
+              const l = line(i);
+              return (
+                <button key={i.id} onClick={() => onOpen(p, cfg.tab)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '8px 12px 8px 14px', background: 'none', border: 'none',
+                    borderTop: k ? `1px solid ${T.borderLight}` : 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, color: T.text }}>{l.main}</div>
+                    {l.sub && <div style={{ ...S.meta, color: l.subColor || T.textDim }}>{l.sub}</div>}
+                  </div>
+                  <Icon name="chevronR" size={16} color={T.textDim}/>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </Sheet>
   );
 }
 
@@ -74,7 +131,8 @@ function ToolButton({ icon, label, onClick }) {
 export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegister, onSearch, onShoppingList }) {
   const { profile, isAdmin, signOut, can } = useAuth();
   const { properties, loading, addProperty } = useProperties();
-  const { stats, totals, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
+  const { stats, totals, lists, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
+  const [category, setCategory] = useState(null);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState(false);
 
@@ -102,9 +160,9 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
 
         {!statsLoading && properties.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <Tile n={totals.overdue} label="Overdue" color={T.red}/>
-            <Tile n={totals.toBuy} label="To buy" color={T.primary}/>
-            <Tile n={totals.unscheduled} label="No due date" color={T.warn}/>
+            <Tile n={totals.overdue} label="Overdue" color={T.red} onClick={() => setCategory('overdue')}/>
+            <Tile n={totals.toBuy} label="To buy" color={T.primary} onClick={() => setCategory('toBuy')}/>
+            <Tile n={totals.unscheduled} label="No due date" color={T.warn} onClick={() => setCategory('unscheduled')}/>
           </div>
         )}
         {tools.length > 0 && (
@@ -144,6 +202,8 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
         {isAdmin && <button onClick={() => setAdding(true)} style={{ ...S.btnDashed, marginTop: 6 }}><Icon name="plus" size={18}/> Add property</button>}
       </Page>
 
+      {category && <CategorySheet kind={category} items={lists[category]} properties={properties} onClose={() => setCategory(null)}
+        onOpen={(p, tab) => { setCategory(null); onSelect(p, tab); }}/>}
       {adding && <AddPropertySheet onSave={addProperty} onClose={() => setAdding(false)}/>}
       {menu && (
         <Sheet title={profile?.full_name || 'Account'} onClose={() => setMenu(false)}>

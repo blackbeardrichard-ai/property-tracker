@@ -6,9 +6,11 @@ import { todayISO } from '../lib/format';
 //   overdue     — services whose next_due is before today
 //   toBuy       — materials that are Needed or Ordered (same rule as the property page)
 //   unscheduled — services never logged and with no due date (they can't fall due)
-// Shape: { stats: { [propertyId]: { overdue, toBuy, unscheduled } }, totals, loading, refresh }
+// Shape: { stats: { [propertyId]: { overdue, toBuy, unscheduled } }, totals, lists, loading, refresh }
+//   lists: { overdue: [service], toBuy: [material], unscheduled: [service] } across all properties
 export function useDashboardStats(propertyIds) {
   const [stats, setStats] = useState({});
+  const [lists, setLists] = useState({ overdue: [], toBuy: [], unscheduled: [] });
   const [loading, setLoading] = useState(true);
   const idsKey = (propertyIds || []).join(',');
 
@@ -17,18 +19,23 @@ export function useDashboardStats(propertyIds) {
     if (!ids.length) { setStats({}); setLoading(false); return; }
     setLoading(true);
     const [svcRes, matRes] = await Promise.all([
-      supabase.from('services').select('property_id, next_due, last_done').in('property_id', ids),
-      supabase.from('materials').select('property_id, status').in('property_id', ids).in('status', ['needed', 'ordered']),
+      supabase.from('services').select('id, name, property_id, next_due, last_done, freq_months, is_recurring').in('property_id', ids),
+      supabase.from('materials').select('id, name, qty, unit, property_id, status').in('property_id', ids).in('status', ['needed', 'ordered']),
     ]);
     const today = todayISO();
     const next = Object.fromEntries(ids.map(id => [id, { overdue: 0, toBuy: 0, unscheduled: 0 }]));
+    const L = { overdue: [], toBuy: [], unscheduled: [] };
     (svcRes.data || []).forEach(s => {
       const row = next[s.property_id]; if (!row) return;
-      if (s.next_due && s.next_due < today) row.overdue += 1;
-      else if (!s.next_due && !s.last_done) row.unscheduled += 1;
+      if (s.next_due && s.next_due < today) { row.overdue += 1; L.overdue.push(s); }
+      else if (!s.next_due && !s.last_done) { row.unscheduled += 1; L.unscheduled.push(s); }
     });
-    (matRes.data || []).forEach(m => { if (next[m.property_id]) next[m.property_id].toBuy += 1; });
+    (matRes.data || []).forEach(m => { if (next[m.property_id]) { next[m.property_id].toBuy += 1; L.toBuy.push(m); } });
+    L.overdue.sort((a, b) => (a.next_due < b.next_due ? -1 : 1));
+    L.unscheduled.sort((a, b) => a.name.localeCompare(b.name));
+    L.toBuy.sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'needed' ? -1 : 1));
     setStats(next);
+    setLists(L);
     setLoading(false);
   }, [idsKey]);
 
@@ -38,5 +45,5 @@ export function useDashboardStats(propertyIds) {
     (a, s) => ({ overdue: a.overdue + s.overdue, toBuy: a.toBuy + s.toBuy, unscheduled: a.unscheduled + s.unscheduled }),
     { overdue: 0, toBuy: 0, unscheduled: 0 }
   );
-  return { stats, totals, loading, refresh: fetchStats };
+  return { stats, totals, lists, loading, refresh: fetchStats };
 }

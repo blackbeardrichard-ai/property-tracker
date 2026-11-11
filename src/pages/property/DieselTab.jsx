@@ -22,7 +22,7 @@ export function tankLevel(tankId, log) {
   return level;
 }
 
-function EntrySheet({ kind, tanks, assets, onSave, onClose }) {
+function EntrySheet({ kind, tanks, assets, onSave, onClose, onChooseMachines }) {
   const [f, setF] = useState({ tank_id: tanks[0]?.id || '', asset_id: '', litres: '', price_excl: '', meter_reading: '', entry_date: todayISO(), notes: '' });
   const [e, setE] = useState('');
   const set = k => ev => setF(p => ({ ...p, [k]: ev.target.value }));
@@ -51,7 +51,11 @@ function EntrySheet({ kind, tanks, assets, onSave, onClose }) {
         </Field>
       )}
       {kind === 'issue' && (
-        <Field label="Vehicle or machine" htmlFor="dl-asset">
+        <Field label="Vehicle or machine" htmlFor="dl-asset"
+          hint={assets.length === 0 ? (onChooseMachines ? null : 'No machines are marked as diesel yet. Ask a manager to set them.') : null}>
+          {assets.length === 0 && onChooseMachines && (
+            <button type="button" onClick={onChooseMachines} style={{ ...S.btnOutline, marginBottom: 8 }}><Icon name="truck" size={16}/> Choose which machines use diesel</button>
+          )}
           <select id="dl-asset" value={f.asset_id} onChange={set('asset_id')} style={S.input}>
             <option value="">Other (say in notes)</option>
             {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -76,6 +80,42 @@ function EntrySheet({ kind, tanks, assets, onSave, onClose }) {
       )}
       <Field label="Notes (optional)" htmlFor="dl-n"><input id="dl-n" value={f.notes} onChange={set('notes')} placeholder={kind === 'fill' ? 'e.g. Supplier, delivery note no.' : ''} style={S.input}/></Field>
       {e && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{e}</div>}
+    </Sheet>
+  );
+}
+
+async function setDieselMachines(assets, picked) {
+  const on = assets.filter(a => picked.has(a.id) && a.fuel !== 'diesel').map(a => a.id);
+  const off = assets.filter(a => !picked.has(a.id) && a.fuel === 'diesel').map(a => a.id);
+  if (on.length) { const { error } = await supabase.from('assets').update({ fuel: 'diesel' }).in('id', on); if (error) return { error }; }
+  if (off.length) { const { error } = await supabase.from('assets').update({ fuel: null }).in('id', off); if (error) return { error }; }
+  return {};
+}
+
+function MachinesSheet({ assets, onSave, onClose }) {
+  const [picked, setPicked] = useState(() => new Set(assets.filter(a => a.fuel === 'diesel').map(a => a.id)));
+  const [e, setE] = useState('');
+  const save = async () => {
+    const res = await onSave(picked);
+    if (res?.error) { setE(/fuel/.test(res.error.message || '') ? 'The database needs one more small update first (asset fuel SQL).' : res.error.message); return; }
+    onClose();
+  };
+  return (
+    <Sheet title="Diesel machines" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Save</button></>}>
+      <p style={{ ...S.meta, fontSize: 14, margin: '-6px 0 12px', lineHeight: 1.5 }}>Tick everything that runs on diesel. Only these are offered when diesel is issued.</p>
+      {assets.length === 0 && <div style={S.meta}>No assets at this property yet.</div>}
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+        {assets.map((a, i) => (
+          <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 52, padding: '0 12px', borderTop: i ? `1px solid ${T.borderLight}` : 'none', cursor: 'pointer' }}>
+            <input type="checkbox" checked={picked.has(a.id)} onChange={() => setPicked(s => { const n = new Set(s); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })}
+              style={{ width: 20, height: 20, accentColor: T.primary }}/>
+            <span style={{ flex: 1, fontSize: 15 }}>{a.name}</span>
+            <span style={S.meta}>{a.fuel && a.fuel !== 'diesel' ? a.fuel : a.category || ''}</span>
+          </label>
+        ))}
+      </div>
+      {e && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14, marginTop: 12 }}>{e}</div>}
     </Sheet>
   );
 }
@@ -106,7 +146,7 @@ export default function DieselTab({ property }) {
   const [period, setPeriod] = useState('30');
 
   useEffect(() => {
-    supabase.from('assets').select('id, name, meter_type, meter_reading').eq('current_property_id', property.id).order('name').then(({ data }) => setAssets(data || []));
+    supabase.from('assets').select('*').eq('current_property_id', property.id).order('name').then(({ data }) => setAssets(data || []));
   }, [property.id]);
   useEffect(() => { fetchNames(logApi.rows.map(r => r.created_by)).then(setNames); }, [logApi.rows]);
 
@@ -117,6 +157,9 @@ export default function DieselTab({ property }) {
   const bought = recent.filter(e => e.kind === 'fill');
   const spend = bought.reduce((a, e) => a + Number(e.price_excl || 0), 0);
   const assetName = id => assets.find(a => a.id === id)?.name;
+  // Only machines marked as running on diesel are offered (all of them if the fuel column isn't in the database yet).
+  const fuelKnown = assets.some(a => 'fuel' in a);
+  const dieselAssets = fuelKnown ? assets.filter(a => a.fuel === 'diesel') : assets;
   const tankName = id => tanksApi.rows.find(t => t.id === id)?.name;
 
   if (tanksApi.loading || logApi.loading) return <Loading label="Loading diesel…"/>;
@@ -162,7 +205,12 @@ export default function DieselTab({ property }) {
           </div>
         );
       })}
-      {canManage && <button onClick={() => setSheet('tank')} style={{ ...S.btnDashed, margin: '4px 0 20px' }}><Icon name="plus" size={18}/> Add tank</button>}
+      {canManage && <button onClick={() => setSheet('tank')} style={{ ...S.btnDashed, margin: '4px 0 12px' }}><Icon name="plus" size={18}/> Add tank</button>}
+      {canManage && (
+        <button onClick={() => setSheet('machines')} style={{ ...S.btnGhost, width: '100%', marginBottom: 20 }}>
+          <Icon name="truck" size={18}/> Diesel machines ({dieselAssets.length})
+        </button>
+      )}
 
       <SectionLabel style={{ marginBottom: 8 }}>Log</SectionLabel>
       {log.length === 0 ? <Empty>No diesel logged yet.</Empty> : (
@@ -184,7 +232,15 @@ export default function DieselTab({ property }) {
         </div>
       )}
 
-      {['fill', 'issue', 'dip'].includes(sheet) && <EntrySheet kind={sheet} tanks={tanksApi.rows} assets={assets} onSave={save} onClose={() => setSheet(null)}/>}
+      {['fill', 'issue', 'dip'].includes(sheet) && <EntrySheet kind={sheet} tanks={tanksApi.rows} assets={dieselAssets} onSave={save} onClose={() => setSheet(null)}
+        onChooseMachines={canManage ? () => setSheet('machines') : null}/>}
+      {sheet === 'machines' && <MachinesSheet assets={assets} onClose={() => setSheet(null)} onSave={async picked => {
+        const res = await setDieselMachines(assets, picked);
+        if (res.error) return res;
+        setAssets(as => as.map(a => ({ ...a, fuel: picked.has(a.id) ? 'diesel' : a.fuel === 'diesel' ? null : a.fuel })));
+        setToast(`${picked.size} diesel machine${picked.size === 1 ? '' : 's'}`);
+        return {};
+      }}/>}
       {sheet === 'tank' && <TankSheet onSave={row => tanksApi.add(row, row.name)} onClose={() => setSheet(null)}/>}
       {del && <ConfirmSheet title="Delete this entry?" body={`${fmtDate(del.entry_date)} · ${L(del.litres)}. This can't be undone.`} onConfirm={() => logApi.remove(del.id, 'diesel entry')} onClose={() => setDel(null)}/>}
       {toast && <Toast message={toast} onDismiss={() => setToast('')}/>}

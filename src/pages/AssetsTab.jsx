@@ -18,6 +18,22 @@ const fmtRand = v => (v ? `R ${parseFloat(v).toLocaleString('en-ZA', { minimumFr
 // Empty form fields go to the database as null, not '' (which date and number columns reject).
 const clean = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]));
 
+const FUELS = [['diesel', 'Diesel'], ['petrol', 'Petrol'], ['electric', 'Electric'], ['none', 'No engine']];
+function FuelPicker({ value, onChange }) {
+  return (
+    <div role="group" aria-label="Runs on" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {FUELS.map(([v, l]) => {
+        const on = value === v;
+        return (
+          <button key={v} type="button" onClick={() => onChange(on ? '' : v)} aria-pressed={on}
+            style={{ height: 40, padding: '0 14px', borderRadius: 20, cursor: 'pointer', fontFamily: T.sans, fontSize: 14, fontWeight: on ? 600 : 500,
+              background: on ? T.primary : T.surface, color: on ? T.onPrimary : T.textMid, border: `1px solid ${on ? T.primary : T.border}` }}>{l}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ConditionPicker({ value, onChange }) {
   return (
     <div role="group" aria-label="Condition" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -36,12 +52,14 @@ function ConditionPicker({ value, onChange }) {
 }
 
 function AddAssetSheet({ onSave, onClose }) {
-  const [form, setForm] = useState({ name: '', category: 'Machinery', make: '', model: '', serial_number: '', year: '', purchase_date: '', purchase_price: '', condition: 'good', notes: '' });
+  const [form, setForm] = useState({ name: '', category: 'Machinery', make: '', model: '', serial_number: '', year: '', purchase_date: '', purchase_price: '', condition: 'good', notes: '', fuel: '' });
   const [err, setErr] = useState('');
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
   const save = async () => {
     if (!form.name.trim()) { setErr('Name is required.'); return; }
-    const { error } = await onSave(clean({ ...form, name: form.name.trim() }));
+    const row = clean({ ...form, name: form.name.trim() });
+    if (!row.fuel) delete row.fuel; // only sent when chosen
+    const { error } = await onSave(row);
     if (error) { setErr(error.message); return; }
     onClose();
   };
@@ -66,6 +84,7 @@ function AddAssetSheet({ onSave, onClose }) {
         <Field label="Price, R" htmlFor="as-pp" style={half}><input id="as-pp" type="number" inputMode="decimal" min="0" step="0.01" value={form.purchase_price} onChange={f('purchase_price')} style={S.input}/></Field>
       </div>
       <Field label="Condition"><ConditionPicker value={form.condition} onChange={v => setForm(p => ({ ...p, condition: v }))}/></Field>
+      <Field label="Runs on"><FuelPicker value={form.fuel} onChange={v => setForm(p => ({ ...p, fuel: v }))}/></Field>
       <Field label="Notes (optional)" htmlFor="as-notes"><textarea id="as-notes" rows={2} value={form.notes} onChange={f('notes')} style={S.textarea}/></Field>
       {err && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
     </Sheet>
@@ -161,6 +180,7 @@ function ReadingSheet({ asset, onSave, onClose }) {
 
 function MeterSheet({ asset, onSave, onClose }) {
   const [type, setType] = useState(asset.meter_type || 'hours');
+  const [fuel, setFuel] = useState(asset.fuel || '');
   const [reading, setReading] = useState(asset.meter_reading ?? '');
   const [interval, setInterval_] = useState(asset.service_interval ?? '');
   const [next, setNext] = useState(asset.next_service_meter ?? '');
@@ -168,16 +188,17 @@ function MeterSheet({ asset, onSave, onClose }) {
   const u = type === 'km' ? 'km' : 'h';
   const save = async () => {
     const num = v => (v === '' || v == null ? null : Number(v));
-    const patch = { meter_type: type, service_interval: num(interval), next_service_meter: num(next) ?? (num(reading) != null && num(interval) != null ? num(reading) + num(interval) : null) };
+    const patch = { ...(fuel !== (asset.fuel || '') ? { fuel: fuel || null } : {}), meter_type: type, service_interval: num(interval), next_service_meter: num(next) ?? (num(reading) != null && num(interval) != null ? num(reading) + num(interval) : null) };
     if (num(reading) !== (asset.meter_reading ?? null)) { patch.meter_reading = num(reading); patch.meter_date = todayISO(); }
     const res = await onSave(patch);
-    if (res?.error) { setE(/meter/.test(res.error.message || '') ? 'The database isn’t set up for meters yet (farm-features SQL).' : res.error.message); return; }
+    if (res?.error) { setE(/meter|fuel/.test(res.error.message || '') ? 'The database isn’t set up for meters yet (farm-features SQL).' : res.error.message); return; }
     onClose();
   };
   return (
-    <Sheet title="Meter and service interval" onClose={onClose}
+    <Sheet title="Fuel, meter and service" onClose={onClose}
       footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Save</button></>}>
       <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{asset.name}</p>
+      <Field label="Runs on"><FuelPicker value={fuel} onChange={setFuel}/></Field>
       <Field label="Serviced by"><Segmented label="Serviced by" value={type} onChange={setType} options={[['hours', 'Engine hours'], ['km', 'Kilometres']]}/></Field>
       <div style={{ display: 'flex', gap: 10 }}>
         <Field label={`Current reading, ${u}`} htmlFor="mt-r" style={{ flex: 1, minWidth: 0 }}><input id="mt-r" type="number" inputMode="decimal" min="0" value={reading} onChange={ev => setReading(ev.target.value)} style={S.input}/></Field>
@@ -218,7 +239,7 @@ function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
           <ActionMenu title={asset.name} label={`More actions for ${asset.name}`} items={[
             perms.canWrite && { icon: 'wrench', label: 'Log service', onClick: () => setSheet('service') },
             perms.canWrite && asset.meter_type && { icon: 'gauge', label: `Log ${unitWord(asset).toLowerCase()} reading`, onClick: () => setSheet('reading') },
-            perms.canManage && { icon: 'settings', label: 'Meter and service interval', onClick: () => setSheet('meter') },
+            perms.canManage && { icon: 'settings', label: 'Fuel, meter and service interval', onClick: () => setSheet('meter') },
             perms.canManage && { icon: 'move', label: 'Move to another property', onClick: () => setSheet('move') },
             perms.canDelete && { icon: 'trash', label: 'Delete asset', danger: true, onClick: () => setSheet('delete') },
           ]}/>

@@ -162,10 +162,19 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
   ].filter(Boolean);
 
   const avatar = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    {properties.length > 0 && (
+      <button onClick={() => (properties.length === 1 ? onSelect(properties[0], 'emergency') : setSos(true))} aria-label="Emergency"
+        style={{ height: 40, padding: '0 12px', borderRadius: 20, border: 'none', background: T.red, color: '#FFFFFF', fontFamily: T.sans, fontSize: 14, fontWeight: 700,
+          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <Icon name="siren" size={18}/> SOS
+      </button>
+    )}
     <button onClick={() => setMenu(true)} aria-label="Account menu" style={{ ...S.iconBtn, marginRight: -6 }}>
       <span style={{ width: 36, height: 36, borderRadius: 18, background: T.primaryFade, color: T.primary, fontSize: 14, fontWeight: 700,
         display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(profile?.full_name)}</span>
     </button>
+    </div>
   );
 
   return (
@@ -183,12 +192,6 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
             <Tile n={totals.toBuy} label="To buy" color={T.primary} onClick={() => setCategory('toBuy')}/>
             <Tile n={totals.unscheduled} label="No due date" color={T.warn} onClick={() => setCategory('unscheduled')}/>
           </div>
-        )}
-        {properties.length > 0 && (
-          <button onClick={() => (properties.length === 1 ? onSelect(properties[0], 'emergency') : setSos(true))}
-            style={{ ...S.btnPrimary, width: '100%', height: 52, marginBottom: 12, background: T.red, borderColor: T.red, fontSize: 16 }}>
-            <Icon name="siren" size={20}/> Emergency
-          </button>
         )}
         {tools.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>

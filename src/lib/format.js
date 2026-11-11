@@ -58,3 +58,16 @@ export const freqLabel = (months, recurring = true) => {
 };
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// "Today 09:14", "Yesterday 17:02", "3 days ago", else "02 Oct 2026".
+export function fmtAgo(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const days = Math.round((startOf(new Date()) - startOf(d)) / 86400000); // local calendar days
+  const time = d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+  if (days === 0) return `today ${time}`;
+  if (days === 1) return `yesterday ${time}`;
+  if (days > 1 && days < 7) return `${days} days ago`;
+  return fmtDate(iso);
+}

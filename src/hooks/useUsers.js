@@ -9,11 +9,15 @@ export function useUsers() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('full_name');
-    setUsers(data || []);
+    const [{ data }, signIns] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      // Admin-only database function (supabase/sql/2026-11-11_user_last_sign_in.sql).
+      // If it isn't installed yet, or the viewer isn't an admin, sign-in times are simply left out.
+      supabase.rpc('admin_user_sign_ins'),
+    ]);
+    const lastSignIn = Object.fromEntries((signIns?.data || []).map(r => [r.id, r.last_sign_in_at]));
+    const known = !signIns?.error && (signIns?.data || []).length > 0;
+    setUsers((data || []).map(u => (known ? { ...u, last_sign_in_at: lastSignIn[u.id] || null, sign_in_known: true } : u)));
     setLoading(false);
   }, []);
 

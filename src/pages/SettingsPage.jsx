@@ -4,7 +4,7 @@ import { useUsers } from '../hooks/useUsers';
 import { useProperties } from '../hooks/useProperties';
 import { supabase } from '../lib/supabase';
 import { T, S } from '../lib/theme';
-import { fmtDate } from '../lib/format';
+import { fmtDate, fmtAgo } from '../lib/format';
 import { MAT_STATUS } from '../lib/status';
 import { ROLES, OVERRIDABLE_CAPABILITIES, roleHasByDefault } from '../lib/permissions';
 import { Icon, PageHeader, Page, PropertyBadge, Chip, Field, Sheet, ConfirmSheet, SectionLabel, Loading, Empty, Toast } from '../components/ui';
@@ -12,6 +12,7 @@ import { Icon, PageHeader, Page, PropertyBadge, Chip, Field, Sheet, ConfirmSheet
 const DataExportTab = lazy(() => import('./DataExportTab'));
 const PROPERTY_ROLES = ['manager', 'technician', 'viewer'];
 const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const signInText = u => (u.sign_in_known ? (u.last_sign_in_at ? `Signed in ${fmtAgo(u.last_sign_in_at)}` : 'Never signed in') : '');
 const ROLE_TONE = { admin: 'primary', manager: 'info', technician: 'ok', viewer: 'neutral' };
 
 const Card = ({ title, children, style }) => (
@@ -149,6 +150,7 @@ function UserSheet({ user, properties, assignments, api, onClose, onToast }) {
 
   return (
     <Sheet title={user.full_name || 'User'} onClose={onClose}>
+      <div style={{ ...S.meta, margin: '-8px 0 14px' }}>{[user.phone, signInText(user)].filter(Boolean).join(' · ')}</div>
       <Field label="Overall role">
         <select aria-label="Overall role" value={role} onChange={e => changeRole(e.target.value)} style={S.input}>
           {ROLES.map(r => <option key={r} value={r}>{cap(r)}</option>)}
@@ -265,7 +267,7 @@ function UsersTab({ properties }) {
       {avatar(u, false)}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{u.full_name}</div>
-        <div style={S.meta}>{u.phone || 'No phone'}</div>
+        <div style={S.meta}>{signInText(u) || u.phone || 'No phone'}</div>
       </div>
       <Chip tone={ROLE_TONE[u.role]}>{cap(u.role)}</Chip>
       <Icon name="chevronR" size={18} color={T.textDim}/>
@@ -274,7 +276,10 @@ function UsersTab({ properties }) {
   const inactiveRow = (u, i) => (
     <div key={u.id} style={rowStyle(i)}>
       {avatar(u, true)}
-      <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: T.textMid }}>{u.full_name}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: T.textMid }}>{u.full_name}</div>
+        {signInText(u) && <div style={S.meta}>{signInText(u)}</div>}
+      </div>
       <button onClick={() => reactivate(u)} style={{ ...S.btnOutline, height: 36 }}>Reactivate</button>
     </div>
   );

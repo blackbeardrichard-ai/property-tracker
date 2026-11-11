@@ -3,11 +3,12 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { T } from '../lib/theme';
 
-// Satellite map of a farm and its neighbours (Leaflet).
+// Satellite map of a property and its neighbours (Leaflet).
+// Opens on the property: fitted to its boundary if drawn, else zoomed in on its pin; the ⌖ button returns there.
 //   pin          {lat, lng} of the property, if set
 //   boundary     [[lat, lng], …] of the property, if set
 //   neighbours   [{ id, farm_name, boundary }]
-//   onPick(id)   tapping a neighbour's area (id) or the farm itself ('self')
+//   onPick(id)   tapping a neighbour's area (id) or the property itself ('self')
 //   drawing      [[lat, lng], …] being drawn (shown as a dashed line), or null
 //   onMapTap     (lat, lng) when drawing
 const SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
@@ -23,15 +24,40 @@ export default function FarmMap({ pin, boundary, neighbours = [], onPick, drawin
   const pickRef = useRef(onPick); pickRef.current = onPick;
   const drawingRef = useRef(drawing); drawingRef.current = drawing;
   const fitted = useRef(false);
+  const focusedKey = useRef(null);
+  const focusRef = useRef(() => {});
+  // Where the map should look: the property's boundary, else its pin, else the neighbours.
+  focusRef.current = (animate = false) => {
+    const m = map.current; if (!m) return;
+    const opts = { padding: [24, 24], maxZoom: 19, animate };
+    if (boundary?.length > 2) m.fitBounds(L.latLngBounds(boundary), opts);
+    else if (pin) m.setView([pin.lat, pin.lng], 17, { animate });
+    else {
+      const pts = neighbours.flatMap(n => n.boundary || []);
+      if (pts.length > 2) m.fitBounds(L.latLngBounds(pts), opts);
+    }
+  };
 
   useEffect(() => {
     const m = L.map(el.current, { zoomControl: true, attributionControl: true, tap: true });
     L.tileLayer(SAT, { maxZoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }).addTo(m);
     L.tileLayer(LABELS, { maxZoom: 19, opacity: 0.8 }).addTo(m);
-    m.setView(pin ? [pin.lat, pin.lng] : [-24.0, 29.0], pin ? 14 : 6);
+    m.setView([-24.0, 29.0], 6);
+    const Home = L.Control.extend({
+      onAdd: () => {
+        const b = L.DomUtil.create('button', 'leaflet-bar pt-map-home');
+        b.type = 'button'; b.title = 'Back to the property'; b.setAttribute('aria-label', 'Back to the property');
+        b.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
+        L.DomEvent.disableClickPropagation(b);
+        L.DomEvent.on(b, 'click', () => focusRef.current(true));
+        return b;
+      },
+    });
+    new Home({ position: 'topleft' }).addTo(m);
     m.on('click', e => { if (drawingRef.current) tapRef.current?.(e.latlng.lat, e.latlng.lng); });
     layer.current = L.layerGroup().addTo(m);
-    map.current = m;
+    map.current = m; el.current.__map = m; // (for tests)
+    focusedKey.current = null; fitted.current = false;
     return () => { m.remove(); map.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -51,7 +77,7 @@ export default function FarmMap({ pin, boundary, neighbours = [], onPick, drawin
     });
     if (boundary?.length) {
       const own = L.polygon(boundary, { color: '#FFFFFF', weight: 3, fillOpacity: 0.08, dashArray: null }).addTo(g);
-      tooltip(own, 'Our farm');
+      tooltip(own, 'Our property');
       own.on('click', e => { if (drawingRef.current) return; /* the map's own click handler adds the corner */ L.DomEvent.stopPropagation(e); pickRef.current?.('self'); });
       all.push(...boundary);
     }
@@ -63,13 +89,23 @@ export default function FarmMap({ pin, boundary, neighbours = [], onPick, drawin
       L.polyline(drawing.length > 2 ? [...drawing, drawing[0]] : drawing, { color: '#FDE047', weight: 3, dashArray: '6 6' }).addTo(g);
       drawing.forEach(p => L.circleMarker(p, { radius: 5, color: '#111827', weight: 2, fillColor: '#FDE047', fillOpacity: 1 }).addTo(g));
     }
-    if (!fitted.current && all.length > 1) { m.fitBounds(L.latLngBounds(all), { padding: [24, 24] }); fitted.current = true; }
+    // Neighbours only (no pin or boundary of our own yet): show them once.
+    if (!fitted.current && !pin && !boundary?.length && all.length > 2) { focusRef.current(); fitted.current = true; }
   }, [pin, boundary, neighbours, drawing, selectedId]);
+
+  // Go to the property when the map opens and whenever its pin or boundary changes (not while drawing).
+  const focusKey = JSON.stringify([boundary || null, pin ? [pin.lat, pin.lng] : null]);
+  const isDrawing = !!drawing;
+  useEffect(() => {
+    if (isDrawing || focusedKey.current === focusKey) return;
+    focusedKey.current = focusKey;
+    focusRef.current(true);
+  }, [focusKey, isDrawing]);
 
   useEffect(() => { setTimeout(() => map.current?.invalidateSize(), 50); }, [height]);
 
   return (
-    <div ref={el} role="application" aria-label="Map of the farm and neighbours"
-      style={{ height, width: '100%', borderRadius: T.radius, overflow: 'hidden', border: `1px solid ${T.border}`, background: '#1F2937', cursor: drawing ? 'crosshair' : undefined }}/>
+    <div ref={el} role="application" aria-label="Map of the property and neighbours"
+      style={{ position: 'relative', zIndex: 0, height, width: '100%', borderRadius: T.radius, overflow: 'hidden', border: `1px solid ${T.border}`, background: '#1F2937', cursor: drawing ? 'crosshair' : undefined }}/>
   );
 }

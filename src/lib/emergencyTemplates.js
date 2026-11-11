@@ -8,16 +8,16 @@ export const NATIONAL_CONTACTS = [
   { key: 'police', name: 'Police (Flying Squad)', organisation: 'SAPS', phone: '10111' },
   { key: 'ambulance', name: 'Ambulance', organisation: 'Emergency Medical Services', phone: '10177' },
   { key: 'fire', name: 'Fire brigade', organisation: 'District municipality fire & rescue', phone: '', notes: 'Fill in your district’s fire number.' },
-  { key: 'fpa', name: 'Fire Protection Association', organisation: 'Local FPA', phone: '', notes: 'If the farm belongs to an FPA.' },
+  { key: 'fpa', name: 'Fire Protection Association', organisation: 'Local FPA', phone: '', notes: 'If the property belongs to an FPA.' },
   { key: 'hospital', name: 'Nearest hospital', organisation: '', phone: '' },
   { key: 'vet', name: 'Vet', organisation: '', phone: '' },
-  { key: 'security', name: 'Security / farm watch', organisation: '', phone: '' },
+  { key: 'security', name: 'Security / farm or neighbourhood watch', organisation: '', phone: '' },
 ];
 
 export const PROCEDURES = [
   { title: 'Fire', icon: 'fire', call: 'fire', also: ['fpa', 'cell'], neighbours: true, steps: [
     'Get people away from the fire first. Count everyone.',
-    'Call the fire brigade: say the farm name, the map pin and which way the wind is blowing.',
+    'Call the fire brigade: say the property name, the map pin and which way the wind is blowing.',
     'Phone the FPA and warn the neighbours on the list below.',
     'Move vehicles, diesel and livestock out of the fire’s path if it is safe.',
     'Open gates for fire crews and send someone to meet them at the main gate.',
@@ -39,7 +39,7 @@ export const PROCEDURES = [
   ] },
   { title: 'Crime or stock theft', icon: 'shield', call: 'police', also: ['security'], neighbours: true, steps: [
     'Do not confront armed people. Your safety comes first.',
-    'Call the police (10111) and farm security.',
+    'Call the police (10111) and your security company or watch.',
     'Warn the neighbours: vehicle, direction of travel, number of people.',
     'Do not touch tracks, cut fences or gates until the police have seen them.',
     'Write down times and descriptions, take photos, and get the case number.',

@@ -17,7 +17,7 @@ export default function MapTab({ property, canEdit, onEdit, onSaveProperty }) {
     try { await navigator.clipboard.writeText(coords ? fmtCoords(coords) : pin); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
   };
 
-  // Satellite map with the farm, its boundary and the neighbours (tap a farm for its contacts).
+  // Satellite map with the property, its boundary and the neighbours (tap one for its contacts).
   const map = (
     <Suspense fallback={<Loading label="Loading map…"/>}>
       <div style={{ marginBottom: 12 }}><NeighbourMap property={property} em={em} canEdit={canEdit} onSaveProperty={onSaveProperty} height={340}/></div>

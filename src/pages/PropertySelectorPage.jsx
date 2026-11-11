@@ -238,7 +238,7 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
         }}
         onOpen={(p, tab) => { setCategory(null); onSelect(p, tab); }}/>}
       {sos && (
-        <Sheet title="Emergency — which farm?" onClose={() => setSos(false)}>
+        <Sheet title="Emergency — which property?" onClose={() => setSos(false)}>
           <a href="tel:112" style={{ ...S.btnPrimary, width: '100%', boxSizing: 'border-box', height: 56, background: T.red, borderColor: T.red, textDecoration: 'none', marginBottom: 12, fontSize: 17 }}>
             <Icon name="phone" size={20}/> Call 112 now
           </a>

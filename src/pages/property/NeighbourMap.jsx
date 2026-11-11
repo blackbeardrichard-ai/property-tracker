@@ -5,8 +5,9 @@ import { parseLocation } from '../../lib/location';
 import { readOutlines } from '../../lib/kml';
 import { telHref } from '../../lib/phone';
 import { Icon, Sheet, Toast } from '../../components/ui';
+import { NeighbourSheet, saveNeighbourTo } from './neighbours';
 
-// Satellite map of the farm and its neighbours, with drawing and Google Earth import for managers.
+// Satellite map of the property and its neighbours, with drawing and Google Earth import for managers.
 //   em: the emergency data (neighbours + people), from useEmergency()
 export default function NeighbourMap({ property, em, canEdit, onSaveProperty, height = 420 }) {
   const pin = parseLocation(property.map_location);
@@ -14,6 +15,7 @@ export default function NeighbourMap({ property, em, canEdit, onSaveProperty, he
   const [draw, setDraw] = useState(null);        // { target: 'self' | neighbourId | 'new', name, points }
   const [imports, setImports] = useState(null);  // [{ name, boundary, to }]
   const [toast, setToast] = useState(null);
+  const [nbSheet, setNbSheet] = useState(null); // { neighbour } to edit, or {} to add
   const fileRef = useRef(null);
   const topRef = useRef(null);
   // When drawing starts, bring the banner and map into view (the Draw buttons sit below the map).
@@ -41,7 +43,7 @@ export default function NeighbourMap({ property, em, canEdit, onSaveProperty, he
     if (!f) return;
     try {
       const found = await readOutlines(f);
-      if (!found.length) { setToast({ message: 'No farm outlines (polygons) found in that file.', tone: 'error' }); return; }
+      if (!found.length) { setToast({ message: 'No property outlines (polygons) found in that file.', tone: 'error' }); return; }
       setImports(found.map(o => {
         const match = neighbours.find(n => n.farm_name.toLowerCase() === o.name.toLowerCase());
         const self = o.name.toLowerCase().includes(property.name.toLowerCase());
@@ -88,21 +90,27 @@ export default function NeighbourMap({ property, em, canEdit, onSaveProperty, he
             <button onClick={() => setPicked(null)} aria-label="Close" style={{ ...S.iconBtn, width: 36, height: 36 }}><Icon name="close" size={18}/></button>
           </div>
           {sel.notes && <div style={{ ...S.meta, marginBottom: 6 }}>{sel.notes}</div>}
-          {!sel.self && peopleOf(sel.id).length === 0 && <div style={S.meta}>No contacts saved for this farm.</div>}
+          {!sel.self && peopleOf(sel.id).length === 0 && <div style={S.meta}>No contacts saved for this property.</div>}
           {!sel.self && peopleOf(sel.id).map(p => (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${T.borderLight}` }}>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 15 }}>{p.name}</div><div style={S.meta}>{[p.role, p.phone].filter(Boolean).join(' · ')}</div></div>
               {p.phone && <a href={telHref(p.phone)} style={{ ...S.btnPrimary, height: 40, textDecoration: 'none' }}><Icon name="phone" size={16}/> Call</a>}
             </div>
           ))}
-          {canEdit && <button onClick={() => startDraw(sel.self ? 'self' : sel.id, sel.farm_name)} style={{ ...S.btnOutline, marginTop: 8 }}><Icon name="pencil" size={16}/> Redraw boundary</button>}
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              {!sel.self && <button onClick={() => setNbSheet({ neighbour: sel })} style={S.btnOutline}><Icon name="pencil" size={16}/> Edit contacts</button>}
+              <button onClick={() => startDraw(sel.self ? 'self' : sel.id, sel.farm_name)} style={S.btnOutline}><Icon name="pencil" size={16}/> Redraw boundary</button>
+            </div>
+          )}
         </div>
       )}
 
       {canEdit && !draw && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
-          <button onClick={() => startDraw('self', property.name)} style={S.btnGhost}><Icon name="pencil" size={18}/> {property.boundary ? 'Redraw our farm' : 'Draw our farm'}</button>
+          <button onClick={() => startDraw('self', property.name)} style={S.btnGhost}><Icon name="pencil" size={18}/> {property.boundary ? 'Redraw our property' : 'Draw our property'}</button>
           <button onClick={() => fileRef.current?.click()} style={S.btnGhost}><Icon name="download" size={18}/> Google Earth file</button>
+          <button onClick={() => setNbSheet({})} style={{ ...S.btnGhost, gridColumn: '1 / -1' }}><Icon name="plus" size={18}/> Add neighbour</button>
           {neighbours.filter(n => !n.boundary).map(n => (
             <button key={n.id} onClick={() => startDraw(n.id, n.farm_name)} style={{ ...S.btnGhost, gridColumn: '1 / -1' }}><Icon name="pencil" size={18}/> Draw {n.farm_name}</button>
           ))}
@@ -127,7 +135,7 @@ export default function NeighbourMap({ property, em, canEdit, onSaveProperty, he
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i ? `1px solid ${T.borderLight}` : 'none' }}>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 15 }}>{o.name}</div><div style={S.meta}>{o.boundary.length} points</div></div>
               <select aria-label={`What is ${o.name}`} value={o.to} onChange={e => setImports(list => list.map((x, k) => (k === i ? { ...x, to: e.target.value } : x)))} style={{ ...S.input, width: 'auto', minWidth: 150 }}>
-                <option value="self">Our farm ({property.name})</option>
+                <option value="self">Our property ({property.name})</option>
                 <option value="new">New neighbour</option>
                 {neighbours.map(n => <option key={n.id} value={n.id}>{n.farm_name}</option>)}
                 <option value="skip">Skip</option>
@@ -135,6 +143,19 @@ export default function NeighbourMap({ property, em, canEdit, onSaveProperty, he
             </div>
           ))}
         </Sheet>
+      )}
+      {nbSheet && (
+        <NeighbourSheet neighbour={nbSheet.neighbour} people={nbSheet.neighbour ? peopleOf(nbSheet.neighbour.id) : null} hideMapHint
+          onClose={() => setNbSheet(null)}
+          onDelete={nbSheet.neighbour ? async () => { await em.neighbours.remove(nbSheet.neighbour.id, nbSheet.neighbour.farm_name); setPicked(null); } : null}
+          onSave={async (fields, people) => {
+            const res = await saveNeighbourTo(em, property, nbSheet.neighbour, fields, people);
+            if (res.error) return res;
+            // A new neighbour: go straight on to drawing its boundary.
+            if (!nbSheet.neighbour) setTimeout(() => startDraw(res.id, fields.farm_name), 0);
+            else setToast({ message: `${fields.farm_name} saved` });
+            return res;
+          }}/>
       )}
       {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)}/>}
     </div>

@@ -1,4 +1,4 @@
-// Read farm outlines from a Google Earth KML or KMZ file.
+// Read property outlines from a Google Earth KML or KMZ file.
 // Returns [{ name, boundary: [[lat, lng], …] }] — one entry per polygon (or closed path) found.
 export async function readOutlines(file) {
   let text;

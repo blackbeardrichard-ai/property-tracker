@@ -6,21 +6,24 @@ import { fmtDate, fmtDateTime, daysUntil } from '../../lib/format';
 import { PRIORITY, isUsed } from '../../lib/status';
 import { Icon, Chip, Segmented, Field, Sheet, ConfirmSheet, ActionMenu, Empty, Loading } from '../../components/ui';
 import { MaterialSheet, MaterialStatusControl, EditableMaterial } from './materials';
+import { PhotoStrip, PhotoPicker, usePhotos } from '../../components/photos';
 
 const isComplete = t => (t.subtasks || []).length > 0 && t.subtasks.every(s => s.completed);
 
 // ── Sheets ──────────────────────────────────────────────────────────
 function CompleteSheet({ subtask, onSave, onClose }) {
   const [note, setNote] = useState('');
+  const [files, setFiles] = useState([]);
   return (
     <Sheet title="Mark complete" onClose={onClose}
       footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button>
-        <button onClick={() => { onSave(note.trim()); onClose(); }} style={{ ...S.btnPrimary, flex: 2 }}><Icon name="check" size={18}/> Mark complete</button></>}>
+        <button onClick={() => { onSave(note.trim(), files); onClose(); }} style={{ ...S.btnPrimary, flex: 2 }}><Icon name="check" size={18}/> Mark complete</button></>}>
       <p style={{ margin: '0 0 14px', fontSize: 15, color: T.text }}>{subtask.name}</p>
       <Field label="Note (optional)" htmlFor="done-note">
         <textarea id="done-note" autoFocus rows={3} value={note} onChange={e => setNote(e.target.value)}
           placeholder="e.g. Done, but needs sealing — revisit next week" style={S.textarea}/>
       </Field>
+      <PhotoPicker files={files} setFiles={setFiles}/>
     </Sheet>
   );
 }
@@ -102,10 +105,11 @@ function MaterialRow({ mat, names, perms, actions }) {
   );
 }
 
-function SubtaskRow({ sub, names, perms, actions }) {
+function SubtaskRow({ sub, names, perms, actions, photos, photosApi }) {
   const [matOpen, setMatOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [addingPhoto, setAddingPhoto] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const mats = sub.materials || [];
   const usedCount = mats.filter(isUsed).length;
@@ -128,6 +132,11 @@ function SubtaskRow({ sub, names, perms, actions }) {
           {sub.completed && sub.completion_note && (
             <div style={{ fontSize: 14, color: T.textMid, marginTop: 4, lineHeight: 1.4 }}>“{sub.completion_note}”</div>
           )}
+          {(photos.length > 0 || addingPhoto) && (
+            <PhotoStrip photos={photos} canAdd={perms.canWrite} style={{ marginTop: 8 }}
+              onAdd={async f => { await photosApi.add(sub.id, f); setAddingPhoto(false); }}
+              onDelete={perms.canWrite ? photosApi.remove : null}/>
+          )}
         </div>
         <button onClick={() => setMatOpen(o => !o)} aria-expanded={matOpen} aria-label={`Materials for ${sub.name}${mats.length ? `, ${usedCount} of ${mats.length} used` : ''}`}
           style={{ ...S.btnOutline, height: 36, margin: '4px 0', padding: '0 10px', fontWeight: 500,
@@ -135,9 +144,12 @@ function SubtaskRow({ sub, names, perms, actions }) {
           <Icon name="box" size={16}/>{mats.length ? `${usedCount}/${mats.length}` : ''}
           <Icon name={matOpen ? 'chevronU' : 'chevronD'} size={14}/>
         </button>
-        {perms.canDelete && (
+        {(perms.canWrite || perms.canDelete) && (
           <ActionMenu title={sub.name} label={`More actions for ${sub.name}`}
-            items={[{ icon: 'trash', label: 'Delete subtask', danger: true, onClick: () => setConfirming(true) }]}/>
+            items={[
+              perms.canWrite && { icon: 'camera', label: 'Add photo', onClick: () => setAddingPhoto(true) },
+              perms.canDelete && { icon: 'trash', label: 'Delete subtask', danger: true, onClick: () => setConfirming(true) },
+            ]}/>
         )}
       </div>
 
@@ -153,7 +165,8 @@ function SubtaskRow({ sub, names, perms, actions }) {
       )}
 
       {adding && <MaterialSheet onSave={m => actions.addMaterial(sub.id, m)} onClose={() => setAdding(false)}/>}
-      {completing && <CompleteSheet subtask={sub} onSave={note => actions.updateSubtask(sub.id, { completed: true, completion_note: note || null })} onClose={() => setCompleting(false)}/>}
+      {completing && <CompleteSheet subtask={sub} onClose={() => setCompleting(false)}
+        onSave={(note, files) => { actions.updateSubtask(sub.id, { completed: true, completion_note: note || null }); if (files.length) photosApi.add(sub.id, files); }}/>}
       {confirming && <ConfirmSheet title={`Delete “${sub.name}”?`} body="This can't be undone." onConfirm={() => actions.deleteSubtask(sub.id)} onClose={() => setConfirming(false)}/>}
     </div>
   );
@@ -166,6 +179,8 @@ function TaskCard({ task, rooms, names, prevId, nextId, perms, actions }) {
   const [newSub, setNewSub] = useState('');
   const [addingSub, setAddingSub] = useState(false);
   const subs = task.subtasks || [];
+  // Photos are loaded only once the task is opened (one query for all its subtasks).
+  const photosApi = usePhotos('subtask', expanded ? subs.map(s => s.id).filter(id => !String(id).startsWith('tmp-')) : [], task.property_id);
   const done = subs.filter(s => s.completed).length;
   const complete = isComplete(task);
   const pr = task.priority && task.priority !== 'medium' ? PRIORITY[task.priority] : null;
@@ -229,7 +244,7 @@ function TaskCard({ task, rooms, names, prevId, nextId, perms, actions }) {
             <div style={{ background: T.surface2, borderRadius: 10, padding: '10px 12px', margin: '8px 0 10px', fontSize: 14, lineHeight: 1.5, color: T.textMid, whiteSpace: 'pre-wrap' }}>{task.notes}</div>
           )}
           {subs.length === 0 && <div style={{ ...S.meta, padding: '10px 0' }}>No subtasks yet</div>}
-          {subs.map(s => <SubtaskRow key={s.id} sub={s} names={names} perms={perms} actions={actions}/>)}
+          {subs.map(s => <SubtaskRow key={s.id} sub={s} names={names} perms={perms} actions={actions} photos={photosApi.byId[s.id] || []} photosApi={photosApi}/>)}
           {perms.canManage && (addingSub ? (
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <input autoFocus aria-label="New subtask" value={newSub} onChange={e => setNewSub(e.target.value)}

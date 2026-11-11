@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useAssets } from '../hooks/useAssets';
 import { T, S } from '../lib/theme';
 import { fmtDate, todayISO } from '../lib/format';
-import { Icon, Chip, Field, Sheet, ConfirmSheet, ActionMenu, Loading, Empty, Toast } from '../components/ui';
+import { Icon, Chip, Field, Sheet, ConfirmSheet, ActionMenu, Loading, Empty, Toast, Segmented } from '../components/ui';
+import { PhotoPicker, PhotoStrip, usePhotos } from '../components/photos';
 
 const CATEGORIES = ['Machinery', 'Vehicle', 'Implement', 'Equipment', 'Tool', 'Other'];
 const CONDITIONS = [
@@ -72,7 +73,7 @@ function AddAssetSheet({ onSave, onClose }) {
 }
 
 function AssetServiceSheet({ asset, onSave, onClose }) {
-  const [form, setForm] = useState({ doneDate: todayISO(), description: '', company: '', invoiceNumber: '', invoiceAmount: '', nextService: '', condition: asset.condition || 'good' });
+  const [form, setForm] = useState({ doneDate: todayISO(), description: '', company: '', invoiceNumber: '', invoiceAmount: '', nextService: '', condition: asset.condition || 'good', meterReading: '', files: [] });
   const [err, setErr] = useState('');
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
   const save = async () => {
@@ -92,10 +93,17 @@ function AssetServiceSheet({ asset, onSave, onClose }) {
       <Field label="Company or technician (optional)" htmlFor="asl-co"><input id="asl-co" value={form.company} onChange={f('company')} style={S.input}/></Field>
       <div style={{ display: 'flex', gap: 10 }}>
         <Field label="Invoice no." htmlFor="asl-inv" style={{ flex: 1, minWidth: 0 }}><input id="asl-inv" value={form.invoiceNumber} onChange={f('invoiceNumber')} style={S.input}/></Field>
-        <Field label="Amount, R" htmlFor="asl-amt" style={{ flex: 1, minWidth: 0 }}><input id="asl-amt" type="number" inputMode="decimal" min="0" step="0.01" value={form.invoiceAmount} onChange={f('invoiceAmount')} style={S.input}/></Field>
+        <Field label="Amount, R excl. VAT" htmlFor="asl-amt" style={{ flex: 1, minWidth: 0 }}><input id="asl-amt" type="number" inputMode="decimal" min="0" step="0.01" value={form.invoiceAmount} onChange={f('invoiceAmount')} style={S.input}/></Field>
       </div>
-      <Field label="Next service (optional)" htmlFor="asl-next"><input id="asl-next" type="date" value={form.nextService} onChange={f('nextService')} style={S.input}/></Field>
+      {asset.meter_type && (
+        <Field label={`${unitWord(asset)} reading at service`} htmlFor="asl-meter"
+          hint={asset.service_interval && form.meterReading ? `Next service at ${fmtNum(Number(form.meterReading) + Number(asset.service_interval))} ${unitShort(asset)}` : null}>
+          <input id="asl-meter" type="number" inputMode="decimal" min="0" value={form.meterReading} onChange={f('meterReading')} placeholder={asset.meter_reading ? `last ${fmtNum(asset.meter_reading)}` : ''} style={S.input}/>
+        </Field>
+      )}
+      <Field label="Next service date (optional)" htmlFor="asl-next"><input id="asl-next" type="date" value={form.nextService} onChange={f('nextService')} style={S.input}/></Field>
       <Field label="Condition after service"><ConditionPicker value={form.condition} onChange={v => setForm(p => ({ ...p, condition: v }))}/></Field>
+      <PhotoPicker files={form.files} setFiles={fn => setForm(p => ({ ...p, files: typeof fn === 'function' ? fn(p.files) : fn }))} label="Photos or invoice (optional)"/>
       {err && err !== 'required' && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{err}</div>}
     </Sheet>
   );
@@ -121,6 +129,68 @@ function MoveAssetSheet({ asset, properties, currentPropertyId, onSave, onClose 
   );
 }
 
+const unitWord = a => (a.meter_type === 'km' ? 'Odometer' : 'Hour meter');
+const unitShort = a => (a.meter_type === 'km' ? 'km' : 'h');
+const fmtNum = v => Number(v).toLocaleString('en-ZA', { maximumFractionDigits: 1 });
+
+function ReadingSheet({ asset, onSave, onClose }) {
+  const [reading, setReading] = useState('');
+  const [date, setDate] = useState(todayISO());
+  const [e, setE] = useState('');
+  const save = async () => {
+    if (reading === '') { setE('Enter the reading.'); return; }
+    if (asset.meter_reading != null && Number(reading) < Number(asset.meter_reading)) { setE(`That's lower than the last reading (${fmtNum(asset.meter_reading)}).`); return; }
+    const res = await onSave(Number(reading), date);
+    if (res?.error) { setE(res.error.message); return; }
+    onClose();
+  };
+  return (
+    <Sheet title={`${unitWord(asset)} reading`} onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Save reading</button></>}>
+      <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{asset.name}</p>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label={`Reading, ${unitShort(asset)}`} htmlFor="rd-v" style={{ flex: 1, minWidth: 0 }} hint={asset.meter_reading != null ? `Last: ${fmtNum(asset.meter_reading)}` : null}>
+          <input id="rd-v" autoFocus type="number" inputMode="decimal" min="0" value={reading} onChange={ev => { setReading(ev.target.value); setE(''); }} style={S.input}/>
+        </Field>
+        <Field label="Date" htmlFor="rd-d" style={{ flex: 1, minWidth: 0 }}><input id="rd-d" type="date" max={todayISO()} value={date} onChange={ev => setDate(ev.target.value)} style={S.input}/></Field>
+      </div>
+      {e && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{e}</div>}
+    </Sheet>
+  );
+}
+
+function MeterSheet({ asset, onSave, onClose }) {
+  const [type, setType] = useState(asset.meter_type || 'hours');
+  const [reading, setReading] = useState(asset.meter_reading ?? '');
+  const [interval, setInterval_] = useState(asset.service_interval ?? '');
+  const [next, setNext] = useState(asset.next_service_meter ?? '');
+  const [e, setE] = useState('');
+  const u = type === 'km' ? 'km' : 'h';
+  const save = async () => {
+    const num = v => (v === '' || v == null ? null : Number(v));
+    const patch = { meter_type: type, service_interval: num(interval), next_service_meter: num(next) ?? (num(reading) != null && num(interval) != null ? num(reading) + num(interval) : null) };
+    if (num(reading) !== (asset.meter_reading ?? null)) { patch.meter_reading = num(reading); patch.meter_date = todayISO(); }
+    const res = await onSave(patch);
+    if (res?.error) { setE(/meter/.test(res.error.message || '') ? 'The database isn’t set up for meters yet (farm-features SQL).' : res.error.message); return; }
+    onClose();
+  };
+  return (
+    <Sheet title="Meter and service interval" onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>Save</button></>}>
+      <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: T.text }}>{asset.name}</p>
+      <Field label="Serviced by"><Segmented label="Serviced by" value={type} onChange={setType} options={[['hours', 'Engine hours'], ['km', 'Kilometres']]}/></Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label={`Current reading, ${u}`} htmlFor="mt-r" style={{ flex: 1, minWidth: 0 }}><input id="mt-r" type="number" inputMode="decimal" min="0" value={reading} onChange={ev => setReading(ev.target.value)} style={S.input}/></Field>
+        <Field label={`Service every, ${u}`} htmlFor="mt-i" style={{ flex: 1, minWidth: 0 }}><input id="mt-i" type="number" inputMode="decimal" min="0" value={interval} onChange={ev => setInterval_(ev.target.value)} placeholder={type === 'km' ? 'e.g. 10000' : 'e.g. 250'} style={S.input}/></Field>
+      </div>
+      <Field label={`Next service at, ${u}`} htmlFor="mt-n" hint="Leave blank to work it out from the reading and interval.">
+        <input id="mt-n" type="number" inputMode="decimal" min="0" value={next} onChange={ev => setNext(ev.target.value)} style={S.input}/>
+      </Field>
+      {e && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{e}</div>}
+    </Sheet>
+  );
+}
+
 function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
   const [open, setOpen] = useState(false);
   const [sheet, setSheet] = useState(null); // 'service' | 'move' | 'delete'
@@ -128,6 +198,8 @@ function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
   const moves = [...(asset.asset_movements || [])].sort((a, b) => (a.moved_date < b.moved_date ? 1 : -1));
   const propName = id => properties.find(p => p.id === id)?.name || 'Unknown';
   const cond = condition(asset.condition);
+  const logPhotos = usePhotos('asset_service', open ? logs.map(l => l.id) : [], propertyId);
+  const toGo = asset.meter_type && asset.next_service_meter != null && asset.meter_reading != null ? Number(asset.next_service_meter) - Number(asset.meter_reading) : null;
   const facts = [['Serial no.', asset.serial_number], ['Purchased', asset.purchase_date && fmtDate(asset.purchase_date)], ['Price', fmtRand(asset.purchase_price)], ['Notes', asset.notes]].filter(([, v]) => v);
 
   return (
@@ -145,11 +217,28 @@ function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
         <div style={{ paddingRight: 4 }}>
           <ActionMenu title={asset.name} label={`More actions for ${asset.name}`} items={[
             perms.canWrite && { icon: 'wrench', label: 'Log service', onClick: () => setSheet('service') },
+            perms.canWrite && asset.meter_type && { icon: 'gauge', label: `Log ${unitWord(asset).toLowerCase()} reading`, onClick: () => setSheet('reading') },
+            perms.canManage && { icon: 'settings', label: 'Meter and service interval', onClick: () => setSheet('meter') },
             perms.canManage && { icon: 'move', label: 'Move to another property', onClick: () => setSheet('move') },
             perms.canDelete && { icon: 'trash', label: 'Delete asset', danger: true, onClick: () => setSheet('delete') },
           ]}/>
         </div>
       </div>
+
+      {asset.meter_type && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '0 14px 12px' }}>
+          <div style={{ background: T.surface2, borderRadius: 8, padding: '8px 10px' }}>
+            <div style={S.meta}>{unitWord(asset)}</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{asset.meter_reading != null ? `${fmtNum(asset.meter_reading)} ${unitShort(asset)}` : '—'}</div>
+            {asset.meter_date && <div style={S.meta}>read {fmtDate(asset.meter_date)}</div>}
+          </div>
+          <div style={{ background: toGo != null && toGo <= 0 ? T.redFade : toGo != null && asset.service_interval && toGo <= asset.service_interval * 0.1 ? T.warnFade : T.surface2, borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ ...S.meta, color: toGo != null && toGo <= 0 ? T.red : S.meta.color }}>Next service</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: toGo != null && toGo <= 0 ? T.red : T.text }}>{asset.next_service_meter != null ? `${fmtNum(asset.next_service_meter)} ${unitShort(asset)}` : '—'}</div>
+            {toGo != null && <div style={{ ...S.meta, color: toGo <= 0 ? T.red : S.meta.color }}>{toGo <= 0 ? `overdue by ${fmtNum(-toGo)} ${unitShort(asset)}` : `in ${fmtNum(toGo)} ${unitShort(asset)}`}</div>}
+          </div>
+        </div>
+      )}
 
       {open && (
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 14px 14px' }}>
@@ -165,10 +254,15 @@ function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
           <div style={S.fieldLabel}>Service history</div>
           {logs.length === 0 && <div style={{ ...S.meta, marginBottom: 12 }}>No services logged.</div>}
           {logs.slice(0, 5).map(l => (
-            <div key={l.id} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: `1px solid ${T.borderLight}`, fontSize: 14 }}>
-              <span style={{ fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{fmtDate(l.done_date)}</span>
-              <span style={{ flex: 1, color: T.textMid }}>{l.description}{l.next_service ? <span style={S.meta}> · next {fmtDate(l.next_service)}</span> : null}</span>
-              {l.invoice_amount && <span style={{ ...S.meta, whiteSpace: 'nowrap' }}>{fmtRand(l.invoice_amount)}</span>}
+            <div key={l.id} style={{ padding: '8px 0', borderTop: `1px solid ${T.borderLight}`, fontSize: 14 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{fmtDate(l.done_date)}</span>
+                <span style={{ flex: 1, color: T.textMid }}>{l.description}
+                  {l.meter_reading != null ? <span style={S.meta}> · at {fmtNum(l.meter_reading)} {unitShort(asset)}</span> : null}
+                  {l.next_service ? <span style={S.meta}> · next {fmtDate(l.next_service)}</span> : null}</span>
+                {l.invoice_amount && <span style={{ ...S.meta, whiteSpace: 'nowrap' }}>{fmtRand(l.invoice_amount)}</span>}
+              </div>
+              {(logPhotos.byId[l.id] || []).length > 0 && <PhotoStrip photos={logPhotos.byId[l.id]} style={{ marginTop: 8 }}/>}
             </div>
           ))}
           {moves.length > 0 && (
@@ -187,6 +281,9 @@ function AssetCard({ asset, properties, propertyId, perms, api, onDone }) {
         </div>
       )}
 
+      {sheet === 'reading' && <ReadingSheet asset={asset} onClose={() => setSheet(null)}
+        onSave={async (r, d) => { const res = await api.logReading(asset.id, r, d); if (!res?.error) onDone(`${asset.name}: ${fmtNum(r)} ${unitShort(asset)} logged`); return res; }}/>}
+      {sheet === 'meter' && <MeterSheet asset={asset} onClose={() => setSheet(null)} onSave={patch => api.setMeter(asset.id, patch)}/>}
       {sheet === 'service' && <AssetServiceSheet asset={asset} onClose={() => setSheet(null)}
         onSave={async d => { const r = await api.logAssetService(asset.id, d); if (!r?.error) onDone(`${asset.name}: service logged`); return r; }}/>}
       {sheet === 'move' && <MoveAssetSheet asset={asset} properties={properties} currentPropertyId={propertyId} onClose={() => setSheet(null)}

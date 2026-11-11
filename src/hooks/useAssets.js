@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { logAction } from '../lib/audit';
 import { todayISO } from '../lib/format';
+import { uploadPhotos } from '../components/photos';
 
 export function useAssets(propertyId) {
   const { user, profile } = useAuth();
@@ -77,7 +78,12 @@ export function useAssets(propertyId) {
   };
 
   const logAssetService = async (assetId, logData) => {
+    const asset = assets.find(a => a.id === assetId);
+    const id = crypto?.randomUUID ? crypto.randomUUID() : undefined;
+    const meter = logData.meterReading === '' || logData.meterReading == null ? null : Number(logData.meterReading);
     const { error } = await supabase.from('asset_service_logs').insert({
+      ...(id ? { id } : {}),
+      ...(meter != null ? { meter_reading: meter } : {}),
       asset_id: assetId,
       done_date: logData.doneDate,
       description: logData.description,
@@ -89,12 +95,35 @@ export function useAssets(propertyId) {
     });
     if (error) return { error };
     // The condition seen at the service is saved whether or not a next service date was given.
-    if (logData.condition) {
-      await supabase.from('assets').update({ condition: logData.condition }).eq('id', assetId);
+    const patch = {};
+    if (logData.condition) patch.condition = logData.condition;
+    if (meter != null) {
+      patch.meter_reading = meter; patch.meter_date = logData.doneDate;
+      if (asset?.service_interval) patch.next_service_meter = meter + Number(asset.service_interval);
     }
+    if (Object.keys(patch).length) await supabase.from('assets').update(patch).eq('id', assetId);
+    if (id && logData.files?.length) await uploadPhotos(propertyId, 'asset_service', id, logData.files);
     fetchAssets();
     return {};
   };
 
-  return { assets, loading, addAsset, updateAsset, deleteAsset, moveAsset, logAssetService, fetchAssets };
+  // Hour meter / odometer reading.
+  const logReading = async (assetId, reading, readOn) => {
+    const r = Number(reading);
+    const { error } = await supabase.from('meter_readings').insert({ property_id: propertyId, asset_id: assetId, reading: r, read_on: readOn });
+    if (error) return { error };
+    await supabase.from('assets').update({ meter_reading: r, meter_date: readOn }).eq('id', assetId);
+    fetchAssets();
+    return {};
+  };
+
+  // Hours or km, service interval, and when the next service is due on the meter.
+  const setMeter = async (assetId, patch) => {
+    const { error } = await supabase.from('assets').update(patch).eq('id', assetId);
+    if (error) return { error };
+    fetchAssets();
+    return {};
+  };
+
+  return { assets, loading, addAsset, updateAsset, deleteAsset, moveAsset, logAssetService, logReading, setMeter, fetchAssets };
 }

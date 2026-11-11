@@ -18,9 +18,11 @@ export function useDashboardStats(propertyIds) {
     const ids = idsKey ? idsKey.split(',') : [];
     if (!ids.length) { setStats({}); setLoading(false); return; }
     if (!quiet) setLoading(true);
-    const [svcRes, matRes] = await Promise.all([
+    const [svcRes, matRes, storeRes] = await Promise.all([
       supabase.from('services').select('id, name, property_id, next_due, last_done, freq_months, is_recurring').in('property_id', ids),
       supabase.from('materials').select('id, name, qty, unit, property_id, status').in('property_id', ids).in('status', ['needed', 'ordered']),
+      // Store items below their minimum also count as "to buy" (table from the farm-features SQL; ignored if missing).
+      supabase.from('store_items').select('id, name, qty, unit, min_qty, property_id').in('property_id', ids).not('min_qty', 'is', null),
     ]);
     const today = todayISO();
     const next = Object.fromEntries(ids.map(id => [id, { overdue: 0, toBuy: 0, unscheduled: 0 }]));
@@ -31,9 +33,13 @@ export function useDashboardStats(propertyIds) {
       else if (!s.next_due && !s.last_done) { row.unscheduled += 1; L.unscheduled.push(s); }
     });
     (matRes.data || []).forEach(m => { if (next[m.property_id]) { next[m.property_id].toBuy += 1; L.toBuy.push(m); } });
+    (storeRes.error ? [] : storeRes.data || []).filter(i => Number(i.qty) < Number(i.min_qty)).forEach(i => {
+      if (next[i.property_id]) { next[i.property_id].toBuy += 1; L.toBuy.push({ ...i, store: true }); }
+    });
     L.overdue.sort((a, b) => (a.next_due < b.next_due ? -1 : 1));
     L.unscheduled.sort((a, b) => a.name.localeCompare(b.name));
-    L.toBuy.sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'needed' ? -1 : 1));
+    const rank = i => (i.store ? 2 : i.status === 'needed' ? 0 : 1);
+    L.toBuy.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
     setStats(next);
     setLists(L);
     setLoading(false);

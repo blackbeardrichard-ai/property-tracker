@@ -103,6 +103,17 @@ function CategorySheet({ kind, items, properties, onOpen, onClose, canEdit, onEd
           <div style={{ ...S.card, overflow: 'hidden', marginTop: 4 }}>
             {list.map((i, k) => {
               const l = line(i);
+              if (kind === 'toBuy' && i.store) return (
+                <button key={i.id} onClick={() => onOpen(p, 'store')}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '8px 12px 8px 14px', background: 'none', border: 'none',
+                    borderTop: k ? `1px solid ${T.borderLight}` : 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, color: T.text }}>{i.name}</div>
+                    <div style={S.meta}>{`Store: ${Number(i.qty)} left, minimum ${Number(i.min_qty)} ${i.unit || ''}`.trim()}</div>
+                  </div>
+                  <Icon name="chevronR" size={16} color={T.textDim}/>
+                </button>
+              );
               if (kind === 'toBuy') return (
                 <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '4px 14px', borderTop: k ? `1px solid ${T.borderLight}` : 'none' }}>
                   <EditableMaterial material={i} canEdit={canEdit} sub={l.sub} onSave={patch => onEditMaterial(i, patch)}/>

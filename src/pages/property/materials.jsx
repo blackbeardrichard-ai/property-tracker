@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { T, S } from '../../lib/theme';
 import { MAT_STATUS, MATERIAL_STATUSES, matStatus } from '../../lib/status';
 import { Sheet, Field, Icon } from '../../components/ui';
+import { PhotoStrip, usePhotos } from '../../components/photos';
 
 // ── Unit picker: searchable, with aliases; the user must tap a row ──
 const UNIT_DATA = [
@@ -78,12 +79,21 @@ export function MaterialSheet({ material, onSave, onClose }) {
   const [unit, setUnit] = useState(material?.unit || '');
   const [errors, setErrors] = useState({});
   const [saveErr, setSaveErr] = useState('');
+  const [price, setPrice] = useState(material?.price_excl ?? '');
+  const [supplier, setSupplier] = useState(material?.supplier || '');
   const submit = async () => {
     const e = {};
     if (!name.trim()) e.name = 'required';
     if (!unit) e.unit = 'required';
     if (Object.keys(e).length) { setErrors(e); return; }
-    const res = await onSave({ name: name.trim(), qty: qty === '' ? null : qty, unit });
+    const patch = { name: name.trim(), qty: qty === '' ? null : qty, unit };
+    if (editing) {
+      // Price and supplier are only sent when entered or changed (columns from the farm-features SQL).
+      const p = price === '' ? null : Number(price);
+      if (p !== (material.price_excl ?? null)) patch.price_excl = p;
+      if ((supplier.trim() || null) !== (material.supplier || null)) patch.supplier = supplier.trim() || null;
+    }
+    const res = await onSave(patch);
     if (res?.error) { setSaveErr(res.error.message || 'Couldn’t save. Try again.'); return; }
     onClose();
   };
@@ -100,6 +110,7 @@ export function MaterialSheet({ material, onSave, onClose }) {
       <Field label="Unit" error={errors.unit}>
         <UnitPicker value={unit} invalid={!!errors.unit} onChange={v => { setUnit(v); setErrors(p => ({ ...p, unit: '' })); }}/>
       </Field>
+      {editing && <MaterialExtras material={material} price={price} setPrice={setPrice} supplier={supplier} setSupplier={setSupplier}/>}
       {saveErr && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{saveErr}</div>}
     </Sheet>
   );
@@ -171,6 +182,25 @@ export function EditableMaterial({ material, canEdit, onSave, sub, struck }) {
         {body}
       </button>
       {editing && <MaterialSheet material={material} onSave={onSave} onClose={() => setEditing(false)}/>}
+    </>
+  );
+}
+
+// Price, supplier and slip photos — shown when editing an existing material.
+function MaterialExtras({ material, price, setPrice, supplier, setSupplier }) {
+  const photos = usePhotos('material', [material.id], material.property_id);
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="Price, R excl. VAT" htmlFor="mat-price" style={{ flex: 1, minWidth: 0 }} hint="Total for this line">
+          <input id="mat-price" type="number" inputMode="decimal" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} style={S.input}/>
+        </Field>
+        <Field label="Supplier" htmlFor="mat-sup" style={{ flex: 1, minWidth: 0 }}>
+          <input id="mat-sup" value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="e.g. Builders" style={S.input}/>
+        </Field>
+      </div>
+      <div style={S.fieldLabel}>Slip or photos</div>
+      <PhotoStrip photos={photos.byId[material.id] || []} canAdd onAdd={f => photos.add(material.id, f)} onDelete={photos.remove} style={{ marginBottom: 14 }}/>
     </>
   );
 }

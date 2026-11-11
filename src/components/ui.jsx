@@ -40,6 +40,16 @@ const PATHS = {
   activity: <path d="M3 12h4l3-8 4 16 3-8h4"/>,
   users:    <><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 13.7c2 .9 3.5 3 3.5 5.3"/></>,
   move:     <><path d="M5 12h14M15 8l4 4-4 4"/></>,
+  cloudOff: <><path d="M7 18a4 4 0 0 1-.5-8 6 6 0 0 1 11.6 1.5A3.5 3.5 0 0 1 17.5 18z"/><path d="M4 4l16 16"/></>,
+  camera:   <><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></>,
+  list:     <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></>,
+  alert:    <><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></>,
+  rain:     <><path d="M7 15a4 4 0 0 1-.5-8 6 6 0 0 1 11.6 1.5A3.5 3.5 0 0 1 17.5 15z"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></>,
+  money:    <><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></>,
+  fuel:     <><path d="M5 20V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v15M4 20h11M14 9h2l2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 8h5"/></>,
+  gauge:    <><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></>,
+  store:    <><path d="M4 9l2-5h12l2 5M4 9h16v11H4zM9 20v-6h6v6"/></>,
+  water:    <><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></>,
   pin:      <><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></>,
   map:      <><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></>,
 };
@@ -218,5 +228,28 @@ export function Toast({ message, onDismiss, tone = 'ok' }) {
       {message}
     </div>,
     document.body
+  );
+}
+
+// Shown when a farm feature's database tables haven't been created yet.
+export function SetupNote({ what }) {
+  return (
+    <div style={{ background: T.warnFade, border: `1px solid ${T.warnBorder}`, color: T.warn, borderRadius: 10, padding: '12px 14px', fontSize: 14, lineHeight: 1.5 }}>
+      <b>{what} isn’t set up in the database yet.</b> An admin needs to run the farm-features SQL in Supabase once.
+    </div>
+  );
+}
+
+// Small number tiles used at the top of tabs.
+export function Tiles({ items }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      {items.map(([n, l, c]) => (
+        <div key={l} style={{ ...S.card, flex: 1, minWidth: 0, padding: '12px 14px' }}>
+          <div style={{ fontSize: String(n).length > 8 ? 16 : String(n).length > 6 ? 18 : 22, fontWeight: 700, lineHeight: 1.25, color: n && n !== '0' ? (c || T.text) : T.textDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</div>
+          <div style={{ ...S.meta, marginTop: 2 }}>{l}</div>
+        </div>
+      ))}
+    </div>
   );
 }

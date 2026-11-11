@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { useGlobalData } from '../hooks/useGlobalData';
 import { T, S } from '../lib/theme';
 import { fmtDate, todayISO } from '../lib/format';
@@ -18,6 +19,13 @@ export default function ShoppingListPage({ onBack }) {
   const { user, profile, canWrite } = useAuth();
   const [showOnSite, setShowOnSite] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [storeLow, setStoreLow] = useState([]);
+  const propKey = (properties || []).map(p => p.id).join(',');
+  useEffect(() => {
+    if (!propKey) return;
+    supabase.from('store_items').select('id, name, qty, unit, min_qty, property_id').in('property_id', propKey.split(',')).not('min_qty', 'is', null)
+      .then(({ data, error }) => setStoreLow(error ? [] : (data || []).filter(i => Number(i.qty) < Number(i.min_qty))));
+  }, [propKey]);
   const propById = useMemo(() => Object.fromEntries((properties || []).map(p => [p.id, p])), [properties]);
 
   const groups = useMemo(() => {
@@ -25,19 +33,21 @@ export default function ShoppingListPage({ onBack }) {
     const order = { needed: 0, ordered: 1, delivered: 2 };
     const byProp = {};
     (materials || []).filter(keep).forEach(m => { (byProp[m.property_id] = byProp[m.property_id] || []).push(m); });
+    storeLow.forEach(i => { byProp[i.property_id] = byProp[i.property_id] || []; });
     return Object.entries(byProp)
-      .map(([pid, items]) => ({ property: propById[pid], items: items.sort((a, b) => order[matStatus(a)] - order[matStatus(b)]) }))
+      .map(([pid, items]) => ({ property: propById[pid], items: items.sort((a, b) => order[matStatus(a)] - order[matStatus(b)]), store: storeLow.filter(i => i.property_id === pid) }))
       .filter(g => g.property).sort((a, b) => a.property.name.localeCompare(b.property.name));
-  }, [materials, propById, showOnSite]);
+  }, [materials, propById, showOnSite, storeLow]);
 
-  const toBuy = (materials || []).filter(m => isToBuy(m) && propById[m.property_id]);
+  const toBuy = [...(materials || []).filter(m => isToBuy(m) && propById[m.property_id]), ...storeLow.filter(i => propById[i.property_id])];
   const text = useMemo(() => {
     const lines = ['Shopping list', fmtDate(todayISO()), ''];
     groups.forEach(g => {
       const items = g.items.filter(isToBuy);
-      if (!items.length) return;
+      if (!items.length && !g.store.length) return;
       lines.push(`*${g.property.name}*`);
       items.forEach(m => lines.push(`• ${m.name}${m.qty ? ` — ${m.qty} ${m.unit || ''}`.trimEnd() : ''}${matStatus(m) === 'ordered' ? ' (ordered)' : ''}`));
+      g.store.forEach(i => lines.push(`• ${i.name} — store has ${Number(i.qty)}, minimum ${Number(i.min_qty)} ${i.unit || ''}`.trimEnd()));
       lines.push('');
     });
     return lines.join('\n').trim();
@@ -70,7 +80,7 @@ export default function ShoppingListPage({ onBack }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <PropertyBadge property={g.property} size={28}/>
                   <h2 style={{ ...S.sectionLabel, color: T.text, fontSize: 15, flex: 1 }}>{g.property.name}</h2>
-                  <span style={S.meta}>{g.items.length}</span>
+                  <span style={S.meta}>{g.items.length + g.store.length}</span>
                 </div>
                 <div style={{ ...S.card, overflow: 'hidden' }}>
                   {g.items.map((m, i) => (
@@ -78,6 +88,15 @@ export default function ShoppingListPage({ onBack }) {
                       <EditableMaterial material={m} canEdit={canWrite} sub={[m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '', taskOf(m)].filter(Boolean).join(' · ')}
                         onSave={async patch => { const r = await saveMaterialEdit(m, patch, { userId: user.id, userName: profile?.full_name }); if (!r.error) refresh(); return r; }}/>
                       <Chip tone={TONE[matStatus(m)]}>{MAT_STATUS[matStatus(m)].label}</Chip>
+                    </div>
+                  ))}
+                  {g.store.map((i, k) => (
+                    <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '8px 14px', borderTop: g.items.length || k ? `1px solid ${T.borderLight}` : 'none' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, color: T.text }}>{i.name}</div>
+                        <div style={S.meta}>{`${Number(i.qty)} left, minimum ${Number(i.min_qty)} ${i.unit || ''}`.trim()}</div>
+                      </div>
+                      <Chip tone="primary">Store</Chip>
                     </div>
                   ))}
                 </div>

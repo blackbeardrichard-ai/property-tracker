@@ -5,10 +5,13 @@ import { fmtDate, todayISO } from '../../lib/format';
 import { MAT_STATUS, matStatus, isToBuy, isOnSite, isUsed } from '../../lib/status';
 import { Icon, Sheet, Empty, Loading, SectionLabel } from '../../components/ui';
 import { MaterialStatusControl, EditableMaterial } from './materials';
+import { isLow, MoveSheet, recordMove } from './StoreTab';
+
+export const shortfall = i => `${Number(i.qty)} left, minimum ${Number(i.min_qty)} ${i.unit || ''}`.trim();
 
 const qtyText = m => (m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '');
 
-export function buildShareText(propertyName, items) {
+export function buildShareText(propertyName, items, storeLow = []) {
   const lines = [`Shopping list — ${propertyName}`, fmtDate(todayISO()), ''];
   const byTask = new Map();
   items.forEach(m => { if (!byTask.has(m.taskName)) byTask.set(m.taskName, []); byTask.get(m.taskName).push(m); });
@@ -17,6 +20,10 @@ export function buildShareText(propertyName, items) {
     list.forEach(m => lines.push(`• ${m.name}${qtyText(m) ? ` — ${qtyText(m)}` : ''}${matStatus(m) === 'ordered' ? ' (ordered)' : ''}`));
     lines.push('');
   });
+  if (storeLow.length) {
+    lines.push('*Store (below minimum)*');
+    storeLow.forEach(i => lines.push(`• ${i.name} — ${shortfall(i)}`));
+  }
   return lines.join('\n').trim();
 }
 
@@ -68,16 +75,18 @@ function Group({ title, color, items, perms, actions }) {
   );
 }
 
-export default function ShoppingTab({ property, tasksApi }) {
+export default function ShoppingTab({ property, tasksApi, storeApi }) {
   const { canWrite, can } = useAuth();
   const { tasks, loading } = tasksApi;
   const [showUsed, setShowUsed] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [stocking, setStocking] = useState(null);
 
   if (loading) return <Loading label="Loading materials…"/>;
+  const storeLow = (storeApi?.rows || []).filter(isLow);
 
   const all = tasks.flatMap(t => (t.subtasks || []).flatMap(s => (s.materials || []).map(m => ({ ...m, taskName: t.name }))));
-  if (!all.length) return <Empty>No materials yet. Add them to a subtask on the Tasks tab.</Empty>;
+  if (!all.length && !storeLow.length) return <Empty>No materials yet. Add them to a subtask on the Tasks tab.</Empty>;
 
   const order = { needed: 0, ordered: 1 };
   const toBuy = all.filter(isToBuy).sort((a, b) => order[matStatus(a)] - order[matStatus(b)]);
@@ -85,25 +94,44 @@ export default function ShoppingTab({ property, tasksApi }) {
   const used = all.filter(isUsed);
   const ordered = toBuy.filter(m => matStatus(m) === 'ordered').length;
   const perms = { canWrite, canEditStatusBack: can('edit_status_backward') };
-  const text = buildShareText(property.name, toBuy);
+  const text = buildShareText(property.name, toBuy, storeLow);
+  const buyCount = toBuy.length + storeLow.length;
 
   return (
     <div>
       <div style={{ ...S.card, padding: '14px 16px', marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 28, fontWeight: 700, color: toBuy.length ? T.primary : T.textDim, lineHeight: 1 }}>{toBuy.length}</span>
+          <span style={{ fontSize: 28, fontWeight: 700, color: buyCount ? T.primary : T.textDim, lineHeight: 1 }}>{buyCount}</span>
           <span style={{ fontSize: 15, color: T.text }}>to buy</span>
         </div>
         <div style={{ ...S.meta, marginTop: 6 }}>{ordered} ordered · {onSite.length} on site, not yet used · {used.length} used</div>
-        {toBuy.length > 0 && (
+        {buyCount > 0 && (
           <button onClick={() => shareList(text, () => setSharing(true))} style={{ ...S.btnPrimary, width: '100%', marginTop: 12 }}>
             <Icon name="send" size={18}/> Share to-buy list on WhatsApp
           </button>
         )}
       </div>
 
-      {toBuy.length === 0 && <div style={{ ...S.meta, marginBottom: 18 }}>Nothing to buy.</div>}
+      {buyCount === 0 && <div style={{ ...S.meta, marginBottom: 18 }}>Nothing to buy.</div>}
       <Group title="To buy" color={T.primary} items={toBuy} perms={perms} actions={tasksApi}/>
+      {storeLow.length > 0 && (
+        <section style={{ marginBottom: 18 }}>
+          <SectionLabel color={T.primary} style={{ marginBottom: 8 }}>Store · below minimum · {storeLow.length}</SectionLabel>
+          <div style={{ ...S.card, overflow: 'hidden' }}>
+            {storeLow.map((i, k) => (
+              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '8px 14px', borderTop: k ? `1px solid ${T.borderLight}` : 'none' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, color: T.text }}>{i.name}</div>
+                  <div style={S.meta}>{`${Number(i.qty)} in store · min ${Number(i.min_qty)} ${i.unit || ''}`.trim()}</div>
+                </div>
+                {canWrite && <button onClick={() => setStocking(i)} style={{ ...S.btnOutline, height: 36 }}>Stock in</button>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {stocking && <MoveSheet item={stocking} initialKind="in" onClose={() => setStocking(null)}
+        onSave={async m => { const r = await recordMove(property.id, stocking, m); if (!r.error) storeApi.refresh(); return r; }}/>}
       <Group title="On site, not yet used" color={MAT_STATUS.delivered.color} items={onSite} perms={perms} actions={tasksApi}/>
       {used.length > 0 && (showUsed
         ? <Group title="Used" color={T.ok} items={used} perms={perms} actions={tasksApi}/>

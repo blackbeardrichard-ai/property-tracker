@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import SyncBanner from './components/SyncBanner';
 import { supabase } from './lib/supabase';
 import LoginPage from './pages/LoginPage';
 import PropertySelectorPage from './pages/PropertySelectorPage';
@@ -94,6 +95,7 @@ function Inner() {
 export default function App() {
   return (
     <AuthProvider>
+      <SyncBanner/>
       <Inner />
     </AuthProvider>
   );

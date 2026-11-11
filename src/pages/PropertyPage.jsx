@@ -12,10 +12,18 @@ import RoomsTab from './property/RoomsTab';
 import MapTab from './property/MapTab';
 import { PropertyDetailsSheet } from './property/PropertyDetails';
 import { useAuth } from '../context/AuthContext';
+import { useRows } from '../hooks/useRows';
+import { isLow } from './property/StoreTab';
 
-// Commercial-only tabs are loaded on demand.
+// Tabs under More are loaded on demand.
 const AssetsTab = lazy(() => import('./AssetsTab'));
 const LivestockTab = lazy(() => import('./LivestockTab'));
+const DieselTab = lazy(() => import('./property/DieselTab'));
+const RoundsTab = lazy(() => import('./property/RoundsTab'));
+const StoreTab = lazy(() => import('./property/StoreTab'));
+const IncidentsTab = lazy(() => import('./property/IncidentsTab'));
+const WaterTab = lazy(() => import('./property/WaterTab'));
+const SpendingTab = lazy(() => import('./property/SpendingTab'));
 
 const MAIN_TABS = [
   { id: 'tasks',    label: 'Tasks',    icon: 'tasks' },
@@ -25,8 +33,14 @@ const MAIN_TABS = [
 ];
 const MORE_TABS = [
   { id: 'map',       label: 'Map',            icon: 'map' },
-  { id: 'assets',    label: 'Asset register', short: 'Assets', icon: 'box', commercial: true },
+  { id: 'rounds',    label: 'Rounds',         icon: 'list' },
+  { id: 'assets',    label: 'Asset register', short: 'Assets', icon: 'truck', commercial: true },
   { id: 'livestock', label: 'Livestock',      icon: 'cow', commercial: true },
+  { id: 'store',     label: 'Store',          icon: 'store' },
+  { id: 'diesel',    label: 'Diesel',         icon: 'fuel', commercial: true },
+  { id: 'incidents', label: 'Incidents',      icon: 'alert' },
+  { id: 'water',     label: 'Rain & water',   short: 'Water', icon: 'rain', commercial: true },
+  { id: 'spending',  label: 'Spending',       icon: 'money' },
 ];
 
 function Badge({ n, tone }) {
@@ -70,9 +84,10 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
   const tasksApi = useTasks(property.id);
   const servicesApi = useServices(property.id);
   const roomsApi = useRooms(property.id);
+  const storeApi = useRows('store_items', property.id, { order: [['name', true]], audit: 'store' });
 
   const overdue = servicesApi.services.filter(s => serviceState(s) === 'overdue').length;
-  const toBuy = tasksApi.tasks.flatMap(t => (t.subtasks || []).flatMap(s => s.materials || [])).filter(isToBuy).length;
+  const toBuy = tasksApi.tasks.flatMap(t => (t.subtasks || []).flatMap(s => s.materials || [])).filter(isToBuy).length + storeApi.rows.filter(isLow).length;
   const current = [...MAIN_TABS, ...MORE_TABS].find(t => t.id === tab);
   const inMore = moreTabs.some(t => t.id === tab);
   const typeLabel = isCommercial ? 'Commercial' : 'Residential';
@@ -86,12 +101,18 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
       <Page bottomPad={96}>
         {tab === 'tasks'    && <TasksTab tasksApi={tasksApi} rooms={roomsApi.rooms}/>}
         {tab === 'services' && <ServicesTab servicesApi={servicesApi}/>}
-        {tab === 'shopping' && <ShoppingTab property={property} tasksApi={tasksApi}/>}
+        {tab === 'shopping' && <ShoppingTab property={property} tasksApi={tasksApi} storeApi={storeApi}/>}
         {tab === 'rooms'    && <RoomsTab roomsApi={roomsApi} tasks={tasksApi.tasks}/>}
         {tab === 'map'      && <MapTab property={property} canEdit={isAdmin} onEdit={() => setEditing(true)}/>}
         <Suspense fallback={<Loading/>}>
           {tab === 'assets'    && <AssetsTab property={property} properties={properties || []}/>}
-          {tab === 'livestock' && <LivestockTab property={property}/>}
+          {tab === 'livestock' && <LivestockTab property={property} areas={roomsApi.rooms}/>}
+          {tab === 'diesel'    && <DieselTab property={property}/>}
+          {tab === 'rounds'    && <RoundsTab property={property} onTasksChanged={() => tasksApi.fetchTasks()}/>}
+          {tab === 'store'     && <StoreTab property={property} storeApi={storeApi}/>}
+          {tab === 'incidents' && <IncidentsTab property={property} areas={roomsApi.rooms}/>}
+          {tab === 'water'     && <WaterTab property={property}/>}
+          {tab === 'spending'  && <SpendingTab property={property}/>}
         </Suspense>
       </Page>
 
@@ -109,7 +130,7 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
 
       {moreOpen && (
         <Sheet title="More" onClose={() => setMoreOpen(false)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
             {moreTabs.map(t => (
               <button key={t.id} onClick={() => select(t.id)}
                 style={{ ...S.menuItem, minHeight: 56, background: tab === t.id ? T.primaryFade : 'none', color: tab === t.id ? T.primary : T.text, fontWeight: tab === t.id ? 600 : 500 }}>
@@ -117,7 +138,7 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
               </button>
             ))}
             {isAdmin && onSaveProperty && (
-              <button onClick={() => { setMoreOpen(false); setEditing(true); }} style={{ ...S.menuItem, minHeight: 56, borderTop: `1px solid ${T.borderLight}`, borderRadius: 0, marginTop: 4 }}>
+              <button onClick={() => { setMoreOpen(false); setEditing(true); }} style={{ ...S.menuItem, minHeight: 56, borderTop: `1px solid ${T.borderLight}`, borderRadius: 0, marginTop: 4, gridColumn: '1 / -1' }}>
                 <Icon name="pencil" size={22} color={T.textMid}/> Property details
               </button>
             )}

@@ -21,7 +21,7 @@ const MAIN_TABS = [
   { id: 'tasks',    label: 'Tasks',    icon: 'tasks' },
   { id: 'services', label: 'Services', icon: 'wrench' },
   { id: 'shopping', label: 'Shopping', icon: 'cart' },
-  { id: 'rooms',    label: 'Rooms',    icon: 'rooms' },
+  { id: 'rooms',    label: 'Areas',    icon: 'rooms' },
 ];
 const MORE_TABS = [
   { id: 'map',       label: 'Map',            icon: 'map' },

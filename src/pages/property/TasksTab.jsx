@@ -55,7 +55,7 @@ function TaskDetailsSheet({ task, rooms, canSetPriority, onSave, onClose }) {
           {active.map(u => <option key={u.id} value={u.id}>{u.full_name}{u.role ? ` (${u.role})` : ''}</option>)}
         </select>
       </Field>
-      <Field label="Room or area" htmlFor="td-room">
+      <Field label="Area" htmlFor="td-room">
         <select id="td-room" value={roomId} onChange={e => setRoomId(e.target.value)} style={S.input}>
           <option value="">None</option>
           {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}

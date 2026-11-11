@@ -12,7 +12,7 @@ function NameSheet({ title, initial = '', saveLabel, onSave, onClose }) {
       footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={save} style={{ ...S.btnPrimary, flex: 2 }}>{saveLabel}</button></>}>
       <Field label="Name" htmlFor="room-name">
         <input id="room-name" autoFocus value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
-          placeholder="e.g. Main bedroom" style={S.input}/>
+          placeholder="e.g. Kitchen, North camp, Borehole 2" style={S.input}/>
       </Field>
     </Sheet>
   );
@@ -25,13 +25,13 @@ export default function RoomsTab({ roomsApi, tasks }) {
   const [renaming, setRenaming] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
-  if (loading) return <Loading label="Loading rooms…"/>;
+  if (loading) return <Loading label="Loading areas…"/>;
 
   const openTasks = id => tasks.filter(t => t.room_id === id && !((t.subtasks || []).length && t.subtasks.every(s => s.completed))).length;
 
   return (
     <div>
-      {rooms.length === 0 && <Empty>No rooms or areas yet.</Empty>}
+      {rooms.length === 0 && <Empty>No areas yet.</Empty>}
       {rooms.length > 0 && (
         <div style={{ ...S.card, overflow: 'hidden', marginBottom: 14 }}>
           {rooms.map((r, i) => {
@@ -56,9 +56,9 @@ export default function RoomsTab({ roomsApi, tasks }) {
           })}
         </div>
       )}
-      {canManage && <button onClick={() => setAdding(true)} style={S.btnDashed}><Icon name="plus" size={18}/> Add room or area</button>}
+      {canManage && <button onClick={() => setAdding(true)} style={S.btnDashed}><Icon name="plus" size={18}/> Add area</button>}
 
-      {adding && <NameSheet title="Add room or area" saveLabel="Add" onSave={roomsApi.addRoom} onClose={() => setAdding(false)}/>}
+      {adding && <NameSheet title="Add area" saveLabel="Add" onSave={roomsApi.addRoom} onClose={() => setAdding(false)}/>}
       {renaming && <NameSheet title="Rename" initial={renaming.name} saveLabel="Save" onSave={n => roomsApi.renameRoom(renaming.id, n)} onClose={() => setRenaming(null)}/>}
       {deleting && <ConfirmSheet title={`Delete “${deleting.name}”?`} body="This can't be undone."
         onConfirm={() => roomsApi.deleteRoom(deleting.id)} onClose={() => setDeleting(null)}/>}

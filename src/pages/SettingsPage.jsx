@@ -307,7 +307,7 @@ function UsersTab({ properties }) {
 }
 
 // ── Activity (audit log) ────────────────────────────────────────────
-const ENTITY_LABEL = { task: 'task', subtask: 'subtask', material: 'material', service: 'service', asset: 'asset', livestock: 'animal', property: 'property', room: 'room', user: 'user' };
+const ENTITY_LABEL = { task: 'task', subtask: 'subtask', material: 'material', service: 'service', asset: 'asset', livestock: 'animal', property: 'property', room: 'area', user: 'user' };
 
 function describeLog(log, propsById) {
   const ent = ENTITY_LABEL[log.entity_type] || log.entity_type || 'item';

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { logAction } from '../lib/audit';
 import { fetchNames, rememberName } from '../lib/names';
 import { MATERIAL_STATUSES } from '../lib/status';
+import { saveMaterialEdit } from '../lib/materials';
 
 const tempId = () => `tmp-${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36)}`;
 const byPos = (a, b) => (a.position ?? 0) - (b.position ?? 0);
@@ -171,6 +172,16 @@ export function useTasks(propertyId) {
     await setMaterialStatus(materialId, MATERIAL_STATUSES[i + 1]);
   };
 
+  // Fix a material's name, quantity or unit.
+  const updateMaterial = async (materialId, patch) => {
+    const before = allMaterials().find(m => m.id === materialId);
+    if (!before) return { error: { message: 'Material not found' } };
+    mapMaterials(m => (m.id === materialId ? { ...m, ...patch } : m));
+    const { error } = await saveMaterialEdit(before, patch, { userId: user.id, userName: profile?.full_name });
+    if (error) mapMaterials(m => (m.id === materialId ? { ...m, name: before.name, qty: before.qty, unit: before.unit } : m));
+    return { error };
+  };
+
   const deleteMaterial = async (materialId) => {
     setTasks(prev => prev.map(t => ({ ...t, subtasks: (t.subtasks || []).map(s => ({ ...s, materials: (s.materials || []).filter(m => m.id !== materialId) })) })));
     await supabase.from('materials').delete().eq('id', materialId);
@@ -180,6 +191,6 @@ export function useTasks(propertyId) {
     tasks, names, loading, fetchTasks,
     addTask, updateTask, deleteTask, swapTasks,
     addSubtask, updateSubtask, deleteSubtask,
-    addMaterial, deleteMaterial, advanceMaterialStatus, setMaterialStatus,
+    addMaterial, updateMaterial, deleteMaterial, advanceMaterialStatus, setMaterialStatus,
   };
 }

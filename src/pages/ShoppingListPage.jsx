@@ -5,13 +5,17 @@ import { fmtDate, todayISO } from '../lib/format';
 import { MAT_STATUS, matStatus, isToBuy, isOnSite } from '../lib/status';
 import { Icon, PageHeader, Page, PropertyBadge, Chip, Loading, Empty } from '../components/ui';
 import { shareList, ShareSheet } from './property/ShoppingTab';
+import { EditableMaterial } from './property/materials';
+import { saveMaterialEdit } from '../lib/materials';
+import { useAuth } from '../context/AuthContext';
 
 const TONE = { needed: 'primary', ordered: 'neutral', delivered: 'info' };
 const taskOf = m => m.subtask?.task?.name || '';
 
 // All properties' "to buy" lists (Needed + Ordered — the same rule as each property's Shopping tab).
 export default function ShoppingListPage({ onBack }) {
-  const { properties, materials, loading } = useGlobalData(['materials']);
+  const { properties, materials, loading, refresh } = useGlobalData(['materials']);
+  const { user, profile, canWrite } = useAuth();
   const [showOnSite, setShowOnSite] = useState(false);
   const [sharing, setSharing] = useState(false);
   const propById = useMemo(() => Object.fromEntries((properties || []).map(p => [p.id, p])), [properties]);
@@ -71,10 +75,8 @@ export default function ShoppingListPage({ onBack }) {
                 <div style={{ ...S.card, overflow: 'hidden' }}>
                   {g.items.map((m, i) => (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '8px 14px', borderTop: i ? `1px solid ${T.borderLight}` : 'none' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 15, color: T.text }}>{m.name}</div>
-                        <div style={S.meta}>{[m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '', taskOf(m)].filter(Boolean).join(' · ')}</div>
-                      </div>
+                      <EditableMaterial material={m} canEdit={canWrite} sub={[m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '', taskOf(m)].filter(Boolean).join(' · ')}
+                        onSave={async patch => { const r = await saveMaterialEdit(m, patch, { userId: user.id, userName: profile?.full_name }); if (!r.error) refresh(); return r; }}/>
                       <Chip tone={TONE[matStatus(m)]}>{MAT_STATUS[matStatus(m)].label}</Chip>
                     </div>
                   ))}

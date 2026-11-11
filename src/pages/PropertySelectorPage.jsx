@@ -5,6 +5,8 @@ import { useDashboardStats } from '../hooks/useDashboardStats';
 import { T, S } from '../lib/theme';
 import { fmtDate, daysUntil, freqLabel, plural } from '../lib/format';
 import { LocationField, PROPERTY_ICONS } from './property/PropertyDetails';
+import { EditableMaterial } from './property/materials';
+import { saveMaterialEdit } from '../lib/materials';
 import { parseLocation, isLink } from '../lib/location';
 import { Icon, PageHeader, Page, PropertyBadge, Chip, Segmented, Field, Sheet, SectionLabel, Loading, Empty } from '../components/ui';
 
@@ -74,7 +76,7 @@ const CATEGORY = {
   toBuy:       { title: 'To buy',           tab: 'shopping' },
   unscheduled: { title: 'Services with no due date', tab: 'services' },
 };
-function CategorySheet({ kind, items, properties, onOpen, onClose }) {
+function CategorySheet({ kind, items, properties, onOpen, onClose, canEdit, onEditMaterial }) {
   const cfg = CATEGORY[kind];
   const groups = properties.map(p => ({ p, list: items.filter(i => i.property_id === p.id) })).filter(g => g.list.length);
   const line = i => {
@@ -101,6 +103,11 @@ function CategorySheet({ kind, items, properties, onOpen, onClose }) {
           <div style={{ ...S.card, overflow: 'hidden', marginTop: 4 }}>
             {list.map((i, k) => {
               const l = line(i);
+              if (kind === 'toBuy') return (
+                <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '4px 14px', borderTop: k ? `1px solid ${T.borderLight}` : 'none' }}>
+                  <EditableMaterial material={i} canEdit={canEdit} sub={l.sub} onSave={patch => onEditMaterial(i, patch)}/>
+                </div>
+              );
               return (
                 <button key={i.id} onClick={() => onOpen(p, cfg.tab)}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '8px 12px 8px 14px', background: 'none', border: 'none',
@@ -129,9 +136,9 @@ function ToolButton({ icon, label, onClick }) {
 }
 
 export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegister, onSearch, onShoppingList }) {
-  const { profile, isAdmin, signOut, can } = useAuth();
+  const { user, profile, isAdmin, canWrite, signOut, can } = useAuth();
   const { properties, loading, addProperty } = useProperties();
-  const { stats, totals, lists, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
+  const { stats, totals, lists, refresh: refreshStats, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
   const [category, setCategory] = useState(null);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -203,6 +210,11 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
       </Page>
 
       {category && <CategorySheet kind={category} items={lists[category]} properties={properties} onClose={() => setCategory(null)}
+        canEdit={canWrite} onEditMaterial={async (m, patch) => {
+          const res = await saveMaterialEdit(m, patch, { userId: user.id, userName: profile?.full_name });
+          if (!res.error) refreshStats();
+          return res;
+        }}
         onOpen={(p, tab) => { setCategory(null); onSelect(p, tab); }}/>}
       {adding && <AddPropertySheet onSave={addProperty} onClose={() => setAdding(false)}/>}
       {menu && (

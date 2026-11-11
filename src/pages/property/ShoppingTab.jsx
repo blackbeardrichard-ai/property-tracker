@@ -4,7 +4,7 @@ import { T, S } from '../../lib/theme';
 import { fmtDate, todayISO } from '../../lib/format';
 import { MAT_STATUS, matStatus, isToBuy, isOnSite, isUsed } from '../../lib/status';
 import { Icon, Sheet, Empty, Loading, SectionLabel } from '../../components/ui';
-import { MaterialStatusControl } from './materials';
+import { MaterialStatusControl, EditableMaterial } from './materials';
 
 const qtyText = m => (m.qty ? `${m.qty} ${m.unit || ''}`.trim() : '');
 
@@ -48,10 +48,8 @@ function ItemRow({ m, perms, actions }) {
   const used = isUsed(m);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '8px 14px', borderTop: `1px solid ${T.borderLight}` }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, color: used ? T.textDim : T.text, textDecoration: used ? 'line-through' : 'none', lineHeight: 1.35 }}>{m.name}</div>
-        <div style={S.meta}>{[qtyText(m), m.taskName].filter(Boolean).join(' · ')}</div>
-      </div>
+      <EditableMaterial material={m} canEdit={perms.canWrite} struck={used} onSave={patch => actions.updateMaterial(m.id, patch)}
+        sub={[qtyText(m), m.taskName].filter(Boolean).join(' · ')}/>
       <MaterialStatusControl material={m} canWrite={perms.canWrite} canEditStatusBack={perms.canEditStatusBack}
         onAdvance={() => actions.advanceMaterialStatus(m.id)} onSetStatus={s => actions.setMaterialStatus(m.id, s)}/>
     </div>

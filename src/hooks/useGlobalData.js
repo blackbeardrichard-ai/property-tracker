@@ -14,9 +14,9 @@ export function useGlobalData(types = ['tasks','materials','services','assets','
 
   const typesKey = [...types].sort().join(',');
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (quiet = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
 
     // Resolve accessible property IDs
     let propIds = [];
@@ -64,5 +64,5 @@ export function useGlobalData(types = ['tasks','materials','services','assets','
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  return { ...data, loading, refresh: fetchAll };
+  return { ...data, loading, refresh: () => fetchAll(true) };
 }

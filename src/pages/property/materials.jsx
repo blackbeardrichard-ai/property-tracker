@@ -70,24 +70,28 @@ function UnitPicker({ value, onChange, invalid }) {
   );
 }
 
-export function MaterialSheet({ onSave, onClose }) {
-  const [name, setName] = useState('');
-  const [qty, setQty] = useState('');
-  const [unit, setUnit] = useState('');
+// Add a material, or (with `material`) correct its name, quantity or unit.
+export function MaterialSheet({ material, onSave, onClose }) {
+  const editing = !!material;
+  const [name, setName] = useState(material?.name || '');
+  const [qty, setQty] = useState(material?.qty ?? '');
+  const [unit, setUnit] = useState(material?.unit || '');
   const [errors, setErrors] = useState({});
-  const submit = () => {
+  const [saveErr, setSaveErr] = useState('');
+  const submit = async () => {
     const e = {};
     if (!name.trim()) e.name = 'required';
     if (!unit) e.unit = 'required';
     if (Object.keys(e).length) { setErrors(e); return; }
-    onSave({ name: name.trim(), qty: qty || null, unit });
+    const res = await onSave({ name: name.trim(), qty: qty === '' ? null : qty, unit });
+    if (res?.error) { setSaveErr(res.error.message || 'Couldn’t save. Try again.'); return; }
     onClose();
   };
   return (
-    <Sheet title="Add material" onClose={onClose}
-      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={submit} style={{ ...S.btnPrimary, flex: 2 }}>Add material</button></>}>
+    <Sheet title={editing ? 'Edit material' : 'Add material'} onClose={onClose}
+      footer={<><button onClick={onClose} style={{ ...S.btnGhost, flex: 1 }}>Cancel</button><button onClick={submit} style={{ ...S.btnPrimary, flex: 2 }}>{editing ? 'Save' : 'Add material'}</button></>}>
       <Field label="Material" htmlFor="mat-name" error={errors.name}>
-        <input id="mat-name" autoFocus value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })); }}
+        <input id="mat-name" autoFocus={!editing} value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })); }}
           placeholder="e.g. River sand" style={{ ...S.input, borderColor: errors.name ? T.red : T.border }}/>
       </Field>
       <Field label="Quantity (optional)" htmlFor="mat-qty">
@@ -96,6 +100,7 @@ export function MaterialSheet({ onSave, onClose }) {
       <Field label="Unit" error={errors.unit}>
         <UnitPicker value={unit} invalid={!!errors.unit} onChange={v => { setUnit(v); setErrors(p => ({ ...p, unit: '' })); }}/>
       </Field>
+      {saveErr && <div role="alert" style={{ color: T.red, background: T.redFade, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{saveErr}</div>}
     </Sheet>
   );
 }
@@ -144,4 +149,28 @@ export function MaterialStatusControl({ material, canWrite, canEditStatusBack, o
     );
   }
   return <span style={chip}>{cfg.label}</span>;
+}
+
+// A material's name and details; tapping it opens the edit sheet when the user may edit.
+export function EditableMaterial({ material, canEdit, onSave, sub, struck }) {
+  const [editing, setEditing] = useState(false);
+  const body = (
+    <>
+      <div style={{ fontSize: 15, lineHeight: 1.35, color: struck ? T.textDim : T.text, textDecoration: struck ? 'line-through' : 'none' }}>
+        {material.name}
+        {canEdit && <Icon name="pencil" size={13} color={T.textDim} style={{ marginLeft: 6, verticalAlign: '-1px' }}/>}
+      </div>
+      {sub && <div style={S.meta}>{sub}</div>}
+    </>
+  );
+  if (!canEdit) return <div style={{ flex: 1, minWidth: 0 }}>{body}</div>;
+  return (
+    <>
+      <button onClick={() => setEditing(true)} aria-label={`Edit ${material.name}`}
+        style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: T.sans }}>
+        {body}
+      </button>
+      {editing && <MaterialSheet material={material} onSave={onSave} onClose={() => setEditing(false)}/>}
+    </>
+  );
 }

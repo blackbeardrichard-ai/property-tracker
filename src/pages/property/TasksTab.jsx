@@ -5,7 +5,7 @@ import { T, S } from '../../lib/theme';
 import { fmtDate, fmtDateTime, daysUntil } from '../../lib/format';
 import { PRIORITY, isUsed } from '../../lib/status';
 import { Icon, Chip, Segmented, Field, Sheet, ConfirmSheet, ActionMenu, Empty, Loading } from '../../components/ui';
-import { MaterialSheet, MaterialStatusControl } from './materials';
+import { MaterialSheet, MaterialStatusControl, EditableMaterial } from './materials';
 
 const isComplete = t => (t.subtasks || []).length > 0 && t.subtasks.every(s => s.completed);
 
@@ -90,12 +90,8 @@ function MaterialRow({ mat, names, perms, actions }) {
   const who = mat.acquired_by && names[mat.acquired_by];
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 52, padding: '6px 0', borderTop: `1px solid ${T.borderLight}` }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, color: used ? T.textDim : T.text, textDecoration: used ? 'line-through' : 'none' }}>{mat.name}</div>
-        {(mat.qty || who) && (
-          <div style={S.meta}>{[mat.qty ? `${mat.qty} ${mat.unit || ''}`.trim() : null, who].filter(Boolean).join(' · ')}</div>
-        )}
-      </div>
+      <EditableMaterial material={mat} canEdit={perms.canWrite} struck={used} onSave={patch => actions.updateMaterial(mat.id, patch)}
+        sub={[mat.qty ? `${mat.qty} ${mat.unit || ''}`.trim() : null, who].filter(Boolean).join(' · ')}/>
       <MaterialStatusControl material={mat} canWrite={perms.canWrite} canEditStatusBack={perms.canEditStatusBack} compact
         onAdvance={() => actions.advanceMaterialStatus(mat.id)} onSetStatus={s => actions.setMaterialStatus(mat.id, s)}/>
       {perms.canDelete && (

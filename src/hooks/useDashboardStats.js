@@ -14,10 +14,10 @@ export function useDashboardStats(propertyIds) {
   const [loading, setLoading] = useState(true);
   const idsKey = (propertyIds || []).join(',');
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (quiet = false) => {
     const ids = idsKey ? idsKey.split(',') : [];
     if (!ids.length) { setStats({}); setLoading(false); return; }
-    setLoading(true);
+    if (!quiet) setLoading(true);
     const [svcRes, matRes] = await Promise.all([
       supabase.from('services').select('id, name, property_id, next_due, last_done, freq_months, is_recurring').in('property_id', ids),
       supabase.from('materials').select('id, name, qty, unit, property_id, status').in('property_id', ids).in('status', ['needed', 'ordered']),
@@ -45,5 +45,5 @@ export function useDashboardStats(propertyIds) {
     (a, s) => ({ overdue: a.overdue + s.overdue, toBuy: a.toBuy + s.toBuy, unscheduled: a.unscheduled + s.unscheduled }),
     { overdue: 0, toBuy: 0, unscheduled: 0 }
   );
-  return { stats, totals, lists, loading, refresh: fetchStats };
+  return { stats, totals, lists, loading, refresh: () => fetchStats(true) };
 }

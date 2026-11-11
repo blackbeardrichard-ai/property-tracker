@@ -76,6 +76,8 @@ async function replay(op, ms = 0) {
   if (op.kind === 'upload') return raw.storage.from(op.bucket).upload(op.path, op.blob, op.opts);
   let b = raw.from(op.table);
   for (const [m, args] of op.calls) b = b[m](...args);
+  // The library's own retries (1 + 2 + 4 s on a dropped connection) only delay falling back to the phone copy.
+  if (typeof b.retry === 'function') b = b.retry(false);
   if (!ms) return b;
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   if (ctl && typeof b.abortSignal === 'function') b = b.abortSignal(ctl.signal);

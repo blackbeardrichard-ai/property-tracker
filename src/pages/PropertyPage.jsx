@@ -24,6 +24,7 @@ const StoreTab = lazy(() => import('./property/StoreTab'));
 const IncidentsTab = lazy(() => import('./property/IncidentsTab'));
 const WaterTab = lazy(() => import('./property/WaterTab'));
 const SpendingTab = lazy(() => import('./property/SpendingTab'));
+const EmergencyTab = lazy(() => import('./property/EmergencyTab'));
 
 const MAIN_TABS = [
   { id: 'tasks',    label: 'Tasks',    icon: 'tasks' },
@@ -32,6 +33,7 @@ const MAIN_TABS = [
   { id: 'rooms',    label: 'Areas',    icon: 'rooms' },
 ];
 const MORE_TABS = [
+  { id: 'emergency', label: 'Emergency',      icon: 'siren' },
   { id: 'map',       label: 'Map',            icon: 'map' },
   { id: 'rounds',    label: 'Rounds',         icon: 'list' },
   { id: 'assets',    label: 'Asset register', short: 'Assets', icon: 'truck', commercial: true },
@@ -96,14 +98,21 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.sans }}>
-      <PageHeader title={property.name} subtitle={`${typeLabel} · ${current?.label}`} onBack={onBack} backLabel="Back to properties"/>
+      <PageHeader title={property.name} subtitle={`${typeLabel} · ${current?.label}`} onBack={onBack} backLabel="Back to properties"
+        right={tab !== 'emergency' && (
+          <button onClick={() => select('emergency')} aria-label="Emergency"
+            style={{ height: 40, padding: '0 12px', borderRadius: 20, border: 'none', background: T.red, color: '#FFFFFF', fontFamily: T.sans, fontSize: 14, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginRight: 4 }}>
+            <Icon name="siren" size={18}/> SOS
+          </button>
+        )}/>
 
       <Page bottomPad={96}>
         {tab === 'tasks'    && <TasksTab tasksApi={tasksApi} rooms={roomsApi.rooms}/>}
         {tab === 'services' && <ServicesTab servicesApi={servicesApi}/>}
         {tab === 'shopping' && <ShoppingTab property={property} tasksApi={tasksApi} storeApi={storeApi}/>}
         {tab === 'rooms'    && <RoomsTab roomsApi={roomsApi} tasks={tasksApi.tasks}/>}
-        {tab === 'map'      && <MapTab property={property} canEdit={isAdmin} onEdit={() => setEditing(true)}/>}
+        {tab === 'map'      && <MapTab property={property} canEdit={isAdmin} onEdit={() => setEditing(true)} onSaveProperty={onSaveProperty}/>}
         <Suspense fallback={<Loading/>}>
           {tab === 'assets'    && <AssetsTab property={property} properties={properties || []}/>}
           {tab === 'livestock' && <LivestockTab property={property} areas={roomsApi.rooms}/>}
@@ -113,6 +122,7 @@ export default function PropertyPage({ property, properties, onBack, initialTab,
           {tab === 'incidents' && <IncidentsTab property={property} areas={roomsApi.rooms}/>}
           {tab === 'water'     && <WaterTab property={property}/>}
           {tab === 'spending'  && <SpendingTab property={property}/>}
+          {tab === 'emergency' && <EmergencyTab property={property} onSaveProperty={onSaveProperty}/>}
         </Suspense>
       </Page>
 

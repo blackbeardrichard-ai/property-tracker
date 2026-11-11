@@ -1,11 +1,12 @@
 // Keeps the app itself on the phone so it opens without signal.
 // Pages: network first, falling back to the saved copy. Built files and fonts: saved copy first.
 const CACHE = 'pt-app-v1';
+const TILES = 'pt-tiles-v1'; // satellite map tiles you've looked at, so the farm map works without signal
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+    for (const k of await caches.keys()) if (k !== CACHE && k !== TILES) await caches.delete(k);
     await self.clients.claim();
   })());
 });
@@ -30,6 +31,15 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  if (url.hostname === 'server.arcgisonline.com') {
+    e.respondWith((async () => {
+      const cache = await caches.open(TILES);
+      const hit = await cache.match(req);
+      if (hit) return hit;
+      try { const res = await fetch(req); if (res.ok || res.type === 'opaque') cache.put(req, res.clone()); return res; } catch { return Response.error(); }
+    })());
+    return;
+  }
   const fonts = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   const asset = same && (url.pathname.startsWith('/assets/') || /\.(png|svg|ico|webmanifest|json)$/.test(url.pathname)) && !url.pathname.startsWith('/api/');
   if (!asset && !fonts) return;

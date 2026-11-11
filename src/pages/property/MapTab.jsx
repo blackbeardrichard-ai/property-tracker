@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { T, S } from '../../lib/theme';
-import { parseLocation, mapsUrl, directionsUrl, embedUrl, fmtCoords } from '../../lib/location';
-import { Icon, Empty } from '../../components/ui';
+import { parseLocation, mapsUrl, directionsUrl, fmtCoords } from '../../lib/location';
+import { Icon, Loading } from '../../components/ui';
+import { useEmergency } from './EmergencyTab';
 
-export default function MapTab({ property, canEdit, onEdit }) {
+const NeighbourMap = lazy(() => import('./NeighbourMap'));
+
+export default function MapTab({ property, canEdit, onEdit, onSaveProperty }) {
   const [copied, setCopied] = useState(false);
+  const em = useEmergency(property.id);
   const pin = property.map_location;
   const coords = parseLocation(pin);
   const open = mapsUrl(pin);
@@ -13,11 +17,17 @@ export default function MapTab({ property, canEdit, onEdit }) {
     try { await navigator.clipboard.writeText(coords ? fmtCoords(coords) : pin); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
   };
 
+  // Satellite map with the farm, its boundary and the neighbours (tap a farm for its contacts).
+  const map = (
+    <Suspense fallback={<Loading label="Loading map…"/>}>
+      <div style={{ marginBottom: 12 }}><NeighbourMap property={property} em={em} canEdit={canEdit} onSaveProperty={onSaveProperty} height={340}/></div>
+    </Suspense>
+  );
+
   if (!pin) {
     return (
       <div>
-        <Empty>No map pin for {property.name} yet.</Empty>
-        {property.address && <p style={{ ...S.meta, textAlign: 'center', marginTop: -8 }}>{property.address}</p>}
+        {map}
         {canEdit && <button onClick={onEdit} style={{ ...S.btnPrimary, width: '100%' }}><Icon name="pin" size={18}/> Add map pin</button>}
       </div>
     );
@@ -25,16 +35,7 @@ export default function MapTab({ property, canEdit, onEdit }) {
 
   return (
     <div>
-      {coords && (
-        <a href={open} target="_blank" rel="noreferrer" aria-label={`Open ${property.name} in Google Maps`}
-          style={{ display: 'block', position: 'relative', borderRadius: T.radius, overflow: 'hidden', border: `1px solid ${T.border}`, marginBottom: 12, background: T.surface2 }}>
-          <iframe title={`Map of ${property.name}`} src={embedUrl(coords)} loading="lazy" referrerPolicy="no-referrer-when-downgrade"
-            style={{ display: 'block', width: '100%', height: 300, border: 0, pointerEvents: 'none' }}/>
-          <span style={{ position: 'absolute', right: 10, bottom: 10, background: T.surface, color: T.primary, borderRadius: 18, padding: '6px 12px', fontSize: 13, fontWeight: 600, boxShadow: T.shadowMd }}>
-            Tap to open in Maps
-          </span>
-        </a>
-      )}
+      {map}
 
       <div style={{ ...S.card, padding: '14px 16px', marginBottom: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: T.text }}>{property.name}</div>

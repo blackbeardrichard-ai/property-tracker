@@ -151,6 +151,7 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
   const { properties, loading, addProperty } = useProperties();
   const { stats, totals, lists, refresh: refreshStats, loading: statsLoading } = useDashboardStats(properties.map(p => p.id));
   const [category, setCategory] = useState(null);
+  const [sos, setSos] = useState(false);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState(false);
 
@@ -182,6 +183,12 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
             <Tile n={totals.toBuy} label="To buy" color={T.primary} onClick={() => setCategory('toBuy')}/>
             <Tile n={totals.unscheduled} label="No due date" color={T.warn} onClick={() => setCategory('unscheduled')}/>
           </div>
+        )}
+        {properties.length > 0 && (
+          <button onClick={() => (properties.length === 1 ? onSelect(properties[0], 'emergency') : setSos(true))}
+            style={{ ...S.btnPrimary, width: '100%', height: 52, marginBottom: 12, background: T.red, borderColor: T.red, fontSize: 16 }}>
+            <Icon name="siren" size={20}/> Emergency
+          </button>
         )}
         {tools.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
@@ -227,6 +234,18 @@ export default function PropertySelectorPage({ onSelect, onSettings, onAssetRegi
           return res;
         }}
         onOpen={(p, tab) => { setCategory(null); onSelect(p, tab); }}/>}
+      {sos && (
+        <Sheet title="Emergency — which farm?" onClose={() => setSos(false)}>
+          <a href="tel:112" style={{ ...S.btnPrimary, width: '100%', boxSizing: 'border-box', height: 56, background: T.red, borderColor: T.red, textDecoration: 'none', marginBottom: 12, fontSize: 17 }}>
+            <Icon name="phone" size={20}/> Call 112 now
+          </a>
+          {properties.map(p => (
+            <button key={p.id} onClick={() => { setSos(false); onSelect(p, 'emergency'); }} style={{ ...S.menuItem, minHeight: 56, fontSize: 16 }}>
+              <PropertyBadge property={p} size={32}/> {p.name}
+            </button>
+          ))}
+        </Sheet>
+      )}
       {adding && <AddPropertySheet onSave={addProperty} onClose={() => setAdding(false)}/>}
       {menu && (
         <Sheet title={profile?.full_name || 'Account'} onClose={() => setMenu(false)}>

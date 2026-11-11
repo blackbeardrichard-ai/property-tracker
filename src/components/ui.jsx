@@ -148,8 +148,8 @@ export function Sheet({ title, onClose, children, footer }) {
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
   }, []);
   return createPortal(
-    <div style={S.overlay} onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} style={S.sheet} onClick={e => e.stopPropagation()}>
+    <div className="pt-overlay" style={S.overlay} onClick={onClose}>
+      <div className="pt-sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} style={S.sheet} onClick={e => e.stopPropagation()}>
         {title && (
           <div style={S.mHead}>
             <div style={S.mLabel}>{title}</div>

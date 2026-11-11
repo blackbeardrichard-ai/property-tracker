@@ -31,6 +31,12 @@
       }
       input::placeholder, textarea::placeholder { color: #6B7280; opacity: 1; }
       #root { min-height: 100vh; min-height: 100dvh; }
+          /* Pop-up sheets: slide up from the bottom on phones, centred as a dialog on wider screens. */
+      .pt-sheet { padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important; }
+      @media (min-width: 640px) {
+        .pt-overlay { align-items: center !important; padding: 24px !important; }
+        .pt-sheet { border-radius: 18px !important; max-height: calc(100vh - 48px) !important; padding-bottom: 24px !important; }
+      }
     </style>
   </head>
   <body>

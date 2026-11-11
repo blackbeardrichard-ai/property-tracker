@@ -35,15 +35,19 @@ export async function uploadPhotos(propertyId, entityType, entityId, files) {
 
 const tile = { width: 64, height: 64, borderRadius: 8, flexShrink: 0 };
 
-function AddTile({ onFiles, label = 'Add photo' }) {
-  const ref = useRef(null);
+// Two tiles: "Camera" opens the phone's camera directly (capture), "Gallery" picks existing photos.
+// Android's picker for multiple files often hides the camera, so the camera gets its own input.
+function AddTile({ onFiles }) {
+  const cam = useRef(null), gal = useRef(null);
+  const pick = e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f.length) onFiles(f); };
+  const btn = { ...tile, border: `1.5px dashed ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: 2, cursor: 'pointer', color: T.primary, fontFamily: T.sans, fontSize: 11, fontWeight: 600 };
   return (
     <>
-      <button onClick={() => ref.current?.click()} aria-label={label}
-        style={{ ...tile, border: `1.5px dashed ${T.border}`, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: T.primary }}>
-        <Icon name="camera" size={22}/>
-      </button>
-      <input ref={ref} type="file" accept="image/*" multiple hidden onChange={e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f.length) onFiles(f); }}/>
+      <button type="button" onClick={() => cam.current?.click()} aria-label="Take a photo" style={btn}><Icon name="camera" size={20}/>Camera</button>
+      <button type="button" onClick={() => gal.current?.click()} aria-label="Choose from gallery" style={btn}><Icon name="image" size={20}/>Gallery</button>
+      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={pick}/>
+      <input ref={gal} type="file" accept="image/*" multiple hidden onChange={pick}/>
     </>
   );
 }

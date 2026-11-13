@@ -271,7 +271,7 @@ export default function DieselTab({ property }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}><Segmented label="Period" value={period} onChange={setPeriod} options={[['30', '30 days'], ['90', '90 days'], ['365', '12 months']]}/></div>
-      <Tiles items={[[L(used), 'Used'], [L(bought.reduce((a, e) => a + Number(e.litres), 0)), 'Bought'], [spend ? R(spend) : 'R 0', 'Spent excl. VAT']]}/>
+      <Tiles items={[[L(used), 'Used'], [L(bought.reduce((a, e) => a + Number(e.litres), 0)), 'Bought'], [`R ${Math.round(spend || 0).toLocaleString('en-ZA')}`, 'Spent excl. VAT']]}/>
       {canWrite && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           <button onClick={() => setSheet('issue')} style={{ ...S.btnPrimary, flex: 1 }}><Icon name="fuel" size={18}/> Issue diesel</button>

@@ -248,7 +248,7 @@ export default function EmergencyTab({ property, onSaveProperty }) {
           {canManage ? (
             <>
               <p style={{ fontSize: 15, color: T.textMid, margin: '0 0 12px', lineHeight: 1.5 }}>
-                Start with the national numbers and standard steps for fire, medical, snake bite, crime and vehicle accidents. Then add your local numbers and neighbours and edit the steps to suit the farm.
+                Start with the national numbers and standard steps for fire, medical, snake bite, crime and vehicle accidents. Then add your local numbers and neighbours and edit the steps to suit the property.
               </p>
               <button onClick={setUp} disabled={busy} style={{ ...S.btnPrimary, width: '100%' }}>{busy ? 'Setting up…' : 'Set up the emergency page'}</button>
             </>

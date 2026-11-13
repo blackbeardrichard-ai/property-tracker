@@ -54,7 +54,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   const same = url.origin === self.location.origin;
 
-  if (same && req.mode === 'navigate') {
+  if (same && req.mode === 'navigate' && !url.pathname.startsWith('/api/')) {
     // The stored copy of this version, at once. The browser checks for a newer version by itself.
     e.respondWith((async () => (await caches.open(APP).then(c => c.match('/index.html', { ignoreVary: true })))
       || (await caches.match('/index.html', { ignoreVary: true }))

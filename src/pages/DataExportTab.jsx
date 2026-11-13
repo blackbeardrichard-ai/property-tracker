@@ -3,6 +3,8 @@ import { useGlobalData } from '../hooks/useGlobalData';
 import { T, S } from '../lib/theme';
 import { todayISO } from '../lib/format';
 import { Icon, Loading } from '../components/ui';
+import BackupCard from '../components/BackupCard';
+import { useAuth } from '../context/AuthContext';
 
 const TYPES = [
   { key:'tasks',     label:'Tasks & Subtasks' },
@@ -14,6 +16,7 @@ const TYPES = [
 
 export default function DataExportTab() {
   const { properties, tasks, materials, services, assets, livestock, loading } = useGlobalData();
+  const { isAdmin } = useAuth();
   const [selTypes, setSelTypes] = useState(() => new Set(TYPES.map(t=>t.key)));
   const [selProps, setSelProps] = useState(null); // null = all accessible
   const [msg, setMsg] = useState('');
@@ -86,6 +89,7 @@ export default function DataExportTab() {
 
   return (
     <div>
+      {isAdmin && <BackupCard/>}
       <h2 style={{ ...S.sectionLabel, color: T.text, fontSize: 17, marginBottom: 4 }}>Data export</h2>
       <p style={{ ...S.meta, fontSize: 14, margin: '0 0 16px', lineHeight: 1.5 }}>
         Download your data as an Excel workbook, one sheet per type. Covers the properties you have access to.
